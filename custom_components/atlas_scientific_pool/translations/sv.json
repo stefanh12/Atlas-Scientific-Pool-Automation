@@ -4,36 +4,21 @@
     "step": {
       "user": {
         "title": "Konfigurera poolnoder",
-        "description": "Upptäckta värdar: {discovered}",
+        "description": "Tillgängliga ESPHome-noder i Home Assistant: {discovered}",
         "data": {
-          "chemistry_host": "Keminodensvärd",
-          "chemistry_port": "Keminodensport",
-          "chemistry_noise_psk": "Keminodenskrypteringsnyckel",
-          "pressure_host": "Filtretrycksnodensvärd",
-          "pressure_port": "Filtretrycksnodensport",
-          "pressure_noise_psk": "Filtretrycksnodenskrypteringsnyckel",
-          "level_host": "Vattennivånodensvärd",
-          "level_port": "Vattennivånodensport",
-          "level_noise_psk": "Vattennivånodenskrypteringsnyckel",
-          "pump_host": "Poolpumpnodens värdadress (valfritt)",
-          "pump_port": "Poolpumpnodens port",
-          "pump_noise_psk": "Poolpumpnodens krypteringsnyckel",
-          "heat_pump_host": "Värmepumpsnodens värdadress (valfritt)",
-          "heat_pump_port": "Värmepumpsnodens port",
-          "heat_pump_noise_psk": "Värmepumpsnodens krypteringsnyckel"
-        },
-        "data_description": {
-          "chemistry_noise_psk": "Lämna tomt om ESPHome-noden inte använder API-kryptering",
-          "pressure_noise_psk": "Lämna tomt om ESPHome-noden inte använder API-kryptering",
-          "level_noise_psk": "Lämna tomt om ESPHome-noden inte använder API-kryptering",
-          "pump_noise_psk": "Lämna tomt om ESPHome-noden inte använder API-kryptering",
-          "heat_pump_noise_psk": "Lämna tomt om ESPHome-noden inte använder API-kryptering"
+          "chemistry_node": "Nodnamn för kemi-ESPHome",
+          "pressure_node": "Nodnamn för filtertryck-ESPHome",
+          "level_node": "Nodnamn för vattennivå-ESPHome",
+          "pump_node": "Nodnamn för poolpump-ESPHome (valfritt)",
+          "heat_pump_node": "Nodnamn för värmepump-ESPHome (valfritt)"
         }
       }
     },
     "error": {
-      "cannot_connect": "Kunde inte ansluta till en eller flera ESPHome-noder",
-      "hosts_must_be_unique": "Varje nod måste ha en unik värdadress"
+      "no_esphome_nodes": "Inga ESPHome-noder hittades i Home Assistant. Lägg till dina ESPHome-enheter först.",
+      "required_nodes_missing": "Kemi-, tryck- och nivånod måste anges",
+      "nodes_must_be_unique": "Varje roll måste peka på en unik ESPHome-nod",
+      "node_not_found": "En eller flera valda nodnamn hittades inte i ESPHome-integrationen"
     },
     "abort": {
       "already_configured": "Den här poolintegrationen är redan konfigurerad"

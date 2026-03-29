@@ -4,13 +4,13 @@ A Home Assistant custom integration (HACS-ready) that connects directly to multi
 
 ## Hardware overview
 
-| Node | ESPHome file | Purpose |
-|---|---|---|
-| Chemistry | `Esphome/pool-ezo.yml` | Atlas EZO pH + ORP probes and chlorine/acid dosing pumps |
-| Filter pressure | `Esphome/pool-filter-pressure.yaml` | Filter pressure monitoring |
-| Water level | `Esphome/pool-water-level.yaml` | Water-level measurement and auto-fill control |
-| Pool pump (optional) | `Esphome/pool-pump-vario.yaml` | Pump ON/OFF + speed relays |
-| Heat pump (optional) | `Esphome/brilix-heat-pump.yaml` | Heat-pump power/mode/setpoint entities |
+| Node                 | ESPHome file                        | Purpose                                                  |
+| -------------------- | ----------------------------------- | -------------------------------------------------------- |
+| Chemistry            | `Esphome/pool-ezo.yml`              | Atlas EZO pH + ORP probes and chlorine/acid dosing pumps |
+| Filter pressure      | `Esphome/pool-filter-pressure.yaml` | Filter pressure monitoring                               |
+| Water level          | `Esphome/pool-water-level.yaml`     | Water-level measurement and auto-fill control            |
+| Pool pump (optional) | `Esphome/pool-pump-vario.yaml`      | Pump ON/OFF + speed relays                               |
+| Heat pump (optional) | `Esphome/brilix-heat-pump.yaml`     | Heat-pump power/mode/setpoint entities                   |
 
 ## Installation
 
@@ -29,7 +29,7 @@ Copy `custom_components/atlas_scientific_pool/` into Home Assistant `config/cust
 
 ## Setup
 
-During setup, provide **host**, **port** (default `6053`), and optional **Noise PSK** for:
+During setup, select existing **ESPHome node names** already configured in Home Assistant for:
 
 - chemistry node (required)
 - filter pressure node (required)
@@ -37,7 +37,8 @@ During setup, provide **host**, **port** (default `6053`), and optional **Noise 
 - pool-pump node (optional)
 - heat-pump node (optional)
 
-All configured hosts must be unique.
+Host, port, and API encryption key are resolved automatically from the ESPHome integration.
+Each role must point to a unique ESPHome node.
 
 ## Entities
 
@@ -53,27 +54,27 @@ The integration automatically imports dynamic ESPHome entities from connected no
 ### Integration-managed entities
 
 - Number entities:
-	- `chlorine dose target`
-	- `acid dose target`
-	- `target orp`
-	- `target water level`
+  - `chlorine dose target`
+  - `acid dose target`
+  - `target orp`
+  - `target water level`
 - Button entities:
-	- `dose chlorine`
-	- `dose acid`
-	- `stop chlorine pump`
-	- `stop acid pump`
+  - `dose chlorine`
+  - `dose acid`
+  - `stop chlorine pump`
+  - `stop acid pump`
 - Binary sensors:
-	- `orp automation active`
-	- `water level automation active`
-	- `orp alert`
-	- `ph alert`
+  - `orp automation active`
+  - `water level automation active`
+  - `orp alert`
+  - `ph alert`
 - Sensors:
-	- `orp automation status`
-	- `orp error`
-	- `chlorine safe dose cap`
-	- `acid safe dose cap`
-	- `water level automation status`
-	- `water level error`
+  - `orp automation status`
+  - `orp error`
+  - `chlorine safe dose cap`
+  - `acid safe dose cap`
+  - `water level automation status`
+  - `water level error`
 
 ### Friendly pool-pump abstraction
 
@@ -119,14 +120,14 @@ All options are configurable via **Settings -> Devices & Services -> Atlas Scien
 ### Pump controls exposure and abstraction
 
 - `expose_raw_pump_switches` (default `false`)
-	- If disabled, raw pump relay switch entities are hidden.
+  - If disabled, raw pump relay switch entities are hidden.
 - `enable_pump_speed_abstraction` (default `true`)
-	- Enables friendly `pool pump` + `pool pump speed` entities.
+  - Enables friendly `pool pump` + `pool pump speed` entities.
 - Mapping object IDs:
-	- `pump_power_switch_object_id` (default `relay4`)
-	- `pump_speed_low_switch_object_id` (default `relay3`)
-	- `pump_speed_medium_switch_object_id` (default `relay2`)
-	- `pump_speed_high_switch_object_id` (default `relay1`)
+  - `pump_power_switch_object_id` (default `relay4`)
+  - `pump_speed_low_switch_object_id` (default `relay3`)
+  - `pump_speed_medium_switch_object_id` (default `relay2`)
+  - `pump_speed_high_switch_object_id` (default `relay1`)
 
 ## Safety model
 

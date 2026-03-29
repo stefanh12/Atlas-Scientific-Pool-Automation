@@ -15,9 +15,7 @@ from .const import (
     CONF_ACID_RUNNING_BINARY_SENSOR,
     CONF_ACID_STOP_BUTTON,
     CONF_ACID_VOLUME_NUMBER,
-    CONF_CHEMISTRY_HOST,
-    CONF_CHEMISTRY_NOISE_PSK,
-    CONF_CHEMISTRY_PORT,
+    CONF_CHEMISTRY_NODE,
     CONF_CHLORINE_DOSE_BUTTON,
     CONF_CHLORINE_RUNNING_BINARY_SENSOR,
     CONF_CHLORINE_STOP_BUTTON,
@@ -28,10 +26,9 @@ from .const import (
     CONF_ENABLE_CONTROLS,
     CONF_ENABLE_LEVEL_AUTOMATION,
     CONF_ENABLE_ORP_AUTOMATION,
-    CONF_LEVEL_HOST,
+    CONF_HEAT_PUMP_NODE,
+    CONF_LEVEL_NODE,
     CONF_LEVEL_HYSTERESIS_PERCENT,
-    CONF_LEVEL_NOISE_PSK,
-    CONF_LEVEL_PORT,
     CONF_LEVEL_SENSOR_OBJECT_ID,
     CONF_MAX_DOSE_ML,
     CONF_MAX_FILL_RUNTIME_MINUTES,
@@ -59,15 +56,8 @@ from .const import (
     CONF_PH_MIN_THRESHOLD,
     CONF_PH_SENSOR_OBJECT_ID,
     CONF_ORP_SENSOR_OBJECT_ID,
-    CONF_PRESSURE_HOST,
-    CONF_PRESSURE_NOISE_PSK,
-    CONF_PRESSURE_PORT,
-    CONF_PUMP_HOST,
-    CONF_PUMP_NOISE_PSK,
-    CONF_PUMP_PORT,
-    CONF_HEAT_PUMP_HOST,
-    CONF_HEAT_PUMP_NOISE_PSK,
-    CONF_HEAT_PUMP_PORT,
+    CONF_PRESSURE_NODE,
+    CONF_PUMP_NODE,
     CONF_SCAN_INTERVAL,
     CONF_DEFAULT_TARGET_WATER_LEVEL_PERCENT,
     CONF_TIMEOUT,
@@ -113,65 +103,107 @@ from .const import (
     DEFAULT_PH_MIN_THRESHOLD,
     DEFAULT_PH_SENSOR_OBJECT_ID,
     DEFAULT_ORP_SENSOR_OBJECT_ID,
-    DEFAULT_PORT,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_TARGET_ORP,
     DEFAULT_TARGET_WATER_LEVEL_PERCENT,
     DEFAULT_TIMEOUT,
     DOMAIN,
 )
-from .esphome_api import ESPHomeNodeClient, ESPHomeTransportError
 
 
-def _host_schema(defaults: dict[str, Any]) -> vol.Schema:
+def _node_schema(defaults: dict[str, Any]) -> vol.Schema:
     return vol.Schema(
         {
-            vol.Required(CONF_CHEMISTRY_HOST, default=defaults.get(CONF_CHEMISTRY_HOST, "")): str,
             vol.Required(
-                CONF_CHEMISTRY_PORT, default=defaults.get(CONF_CHEMISTRY_PORT, DEFAULT_PORT)
-            ): int,
-            vol.Optional(
-                CONF_CHEMISTRY_NOISE_PSK,
-                default=defaults.get(CONF_CHEMISTRY_NOISE_PSK, ""),
+                CONF_CHEMISTRY_NODE,
+                default=defaults.get(CONF_CHEMISTRY_NODE, ""),
             ): str,
-            vol.Required(CONF_PRESSURE_HOST, default=defaults.get(CONF_PRESSURE_HOST, "")): str,
             vol.Required(
-                CONF_PRESSURE_PORT, default=defaults.get(CONF_PRESSURE_PORT, DEFAULT_PORT)
-            ): int,
-            vol.Optional(
-                CONF_PRESSURE_NOISE_PSK,
-                default=defaults.get(CONF_PRESSURE_NOISE_PSK, ""),
+                CONF_PRESSURE_NODE,
+                default=defaults.get(CONF_PRESSURE_NODE, ""),
             ): str,
-            vol.Required(CONF_LEVEL_HOST, default=defaults.get(CONF_LEVEL_HOST, "")): str,
             vol.Required(
-                CONF_LEVEL_PORT, default=defaults.get(CONF_LEVEL_PORT, DEFAULT_PORT)
-            ): int,
-            vol.Optional(
-                CONF_LEVEL_NOISE_PSK,
-                default=defaults.get(CONF_LEVEL_NOISE_PSK, ""),
-            ): str,
-            vol.Optional(CONF_PUMP_HOST, default=defaults.get(CONF_PUMP_HOST, "")): str,
-            vol.Optional(
-                CONF_PUMP_PORT, default=defaults.get(CONF_PUMP_PORT, DEFAULT_PORT)
-            ): int,
-            vol.Optional(
-                CONF_PUMP_NOISE_PSK,
-                default=defaults.get(CONF_PUMP_NOISE_PSK, ""),
+                CONF_LEVEL_NODE,
+                default=defaults.get(CONF_LEVEL_NODE, ""),
             ): str,
             vol.Optional(
-                CONF_HEAT_PUMP_HOST,
-                default=defaults.get(CONF_HEAT_PUMP_HOST, ""),
+                CONF_PUMP_NODE,
+                default=defaults.get(CONF_PUMP_NODE, ""),
             ): str,
             vol.Optional(
-                CONF_HEAT_PUMP_PORT,
-                default=defaults.get(CONF_HEAT_PUMP_PORT, DEFAULT_PORT),
-            ): int,
-            vol.Optional(
-                CONF_HEAT_PUMP_NOISE_PSK,
-                default=defaults.get(CONF_HEAT_PUMP_NOISE_PSK, ""),
+                CONF_HEAT_PUMP_NODE,
+                default=defaults.get(CONF_HEAT_PUMP_NODE, ""),
             ): str,
         }
     )
+
+
+def _normalize_node_name(value: str | None) -> str:
+    return (value or "").strip()
+
+
+def _esphome_entry_keys(entry: config_entries.ConfigEntry) -> set[str]:
+    keys: set[str] = set()
+    if entry.title:
+        keys.add(entry.title.casefold())
+    unique_id = str(entry.unique_id or "").strip()
+    if unique_id:
+        keys.add(unique_id.casefold())
+    data_name = str(entry.data.get("name", "")).strip()
+    if data_name:
+        keys.add(data_name.casefold())
+    return keys
+
+
+def _esphome_entries_index(
+    entries: list[config_entries.ConfigEntry],
+) -> dict[str, config_entries.ConfigEntry]:
+    indexed: dict[str, config_entries.ConfigEntry] = {}
+    for entry in entries:
+        for key in _esphome_entry_keys(entry):
+            indexed.setdefault(key, entry)
+    return indexed
+
+
+_ROLE_CONF_MAP: tuple[tuple[str, str], ...] = (
+    (CONF_CHEMISTRY_NODE, "chemistry"),
+    (CONF_PRESSURE_NODE, "pressure"),
+    (CONF_LEVEL_NODE, "level"),
+    (CONF_PUMP_NODE, "pump"),
+    (CONF_HEAT_PUMP_NODE, "heat_pump"),
+)
+
+
+_ROLE_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "chemistry": ("chem", "ezo", "orp", "ph"),
+    "pressure": ("pressure", "filter"),
+    "level": ("level", "water"),
+    "pump": ("pump", "vario"),
+    "heat_pump": ("heat", "brilix"),
+}
+
+
+def _build_discovery_map(node_names: list[str]) -> dict[str, str]:
+    """Infer role -> node mapping from known ESPHome node names."""
+    result: dict[str, str] = {}
+    used: set[str] = set()
+
+    for conf_key, role in _ROLE_CONF_MAP:
+        keywords = _ROLE_KEYWORDS[role]
+        match = next(
+            (
+                node
+                for node in node_names
+                if node not in used
+                and any(keyword in node.casefold() for keyword in keywords)
+            ),
+            None,
+        )
+        if match:
+            result[conf_key] = match
+            used.add(match)
+
+    return result
 
 
 def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
@@ -483,95 +515,76 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
         }
     )
 
-
-async def _validate_node(host: str, port: int, noise_psk: str | None, timeout: float) -> None:
-    client = ESPHomeNodeClient(host=host, port=port, noise_psk=noise_psk, timeout=timeout)
-    await client.connect()
-    await client.disconnect()
-
-
 class AtlasScientificPoolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Atlas Scientific Pool."""
 
     VERSION = 1
 
     def __init__(self) -> None:
-        self._discovered_hosts: set[str] = set()
+        self._discovered_nodes: set[str] = set()
         self._user_input: dict[str, Any] = {}
 
     async def async_step_zeroconf(self, discovery_info: Any) -> ConfigFlowResult:
         """Capture ESPHome discovery data for user convenience."""
-        host = discovery_info.host
-        if host:
-            self._discovered_hosts.add(host)
+        node_name = _normalize_node_name(getattr(discovery_info, "name", ""))
+        if node_name:
+            self._discovered_nodes.add(node_name)
         return await self.async_step_user()
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Enter all 3 node hosts and auth settings."""
+        """Map pool roles to existing Home Assistant ESPHome nodes."""
         errors: dict[str, str] = {}
 
+        esphome_entries = self.hass.config_entries.async_entries("esphome")
+        entry_index = _esphome_entries_index(esphome_entries)
+        available_nodes = sorted({entry.title for entry in esphome_entries if entry.title})
+        discovered_nodes = sorted(self._discovered_nodes)
+        discovery_candidates = list(dict.fromkeys([*discovered_nodes, *available_nodes]))
+        discovery_map = _build_discovery_map(discovery_candidates)
+        if not discovery_candidates and user_input is None:
+            errors["base"] = "no_esphome_nodes"
+
         defaults = dict(self._user_input)
-        if self._discovered_hosts:
-            discovered = sorted(self._discovered_hosts)
-            defaults.setdefault(CONF_CHEMISTRY_HOST, discovered[0])
-            defaults.setdefault(CONF_PRESSURE_HOST, discovered[1] if len(discovered) > 1 else "")
-            defaults.setdefault(CONF_LEVEL_HOST, discovered[2] if len(discovered) > 2 else "")
+        for conf_key, _role in _ROLE_CONF_MAP:
+            defaults.setdefault(conf_key, discovery_map.get(conf_key, ""))
 
         if user_input is not None:
-            self._user_input = user_input
+            normalized_input = {
+                CONF_CHEMISTRY_NODE: _normalize_node_name(user_input.get(CONF_CHEMISTRY_NODE)),
+                CONF_PRESSURE_NODE: _normalize_node_name(user_input.get(CONF_PRESSURE_NODE)),
+                CONF_LEVEL_NODE: _normalize_node_name(user_input.get(CONF_LEVEL_NODE)),
+                CONF_PUMP_NODE: _normalize_node_name(user_input.get(CONF_PUMP_NODE)),
+                CONF_HEAT_PUMP_NODE: _normalize_node_name(user_input.get(CONF_HEAT_PUMP_NODE)),
+            }
+            self._user_input = normalized_input
 
-            hosts = [
-                user_input[CONF_CHEMISTRY_HOST],
-                user_input[CONF_PRESSURE_HOST],
-                user_input[CONF_LEVEL_HOST],
+            required = [
+                normalized_input[CONF_CHEMISTRY_NODE],
+                normalized_input[CONF_PRESSURE_NODE],
+                normalized_input[CONF_LEVEL_NODE],
             ]
-            if user_input.get(CONF_PUMP_HOST):
-                hosts.append(user_input[CONF_PUMP_HOST])
-            if user_input.get(CONF_HEAT_PUMP_HOST):
-                hosts.append(user_input[CONF_HEAT_PUMP_HOST])
+            optional = [
+                normalized_input[CONF_PUMP_NODE],
+                normalized_input[CONF_HEAT_PUMP_NODE],
+            ]
+            selected = [name for name in [*required, *optional] if name]
 
-            if len(set(hosts)) != len(hosts):
-                errors["base"] = "hosts_must_be_unique"
+            if any(not name for name in required):
+                errors["base"] = "required_nodes_missing"
+            elif len(set(selected)) != len(selected):
+                errors["base"] = "nodes_must_be_unique"
             else:
-                try:
-                    await _validate_node(
-                        host=user_input[CONF_CHEMISTRY_HOST],
-                        port=user_input[CONF_CHEMISTRY_PORT],
-                        noise_psk=user_input.get(CONF_CHEMISTRY_NOISE_PSK) or None,
-                        timeout=DEFAULT_TIMEOUT,
-                    )
-                    await _validate_node(
-                        host=user_input[CONF_PRESSURE_HOST],
-                        port=user_input[CONF_PRESSURE_PORT],
-                        noise_psk=user_input.get(CONF_PRESSURE_NOISE_PSK) or None,
-                        timeout=DEFAULT_TIMEOUT,
-                    )
-                    await _validate_node(
-                        host=user_input[CONF_LEVEL_HOST],
-                        port=user_input[CONF_LEVEL_PORT],
-                        noise_psk=user_input.get(CONF_LEVEL_NOISE_PSK) or None,
-                        timeout=DEFAULT_TIMEOUT,
-                    )
-                    if user_input.get(CONF_PUMP_HOST):
-                        await _validate_node(
-                            host=user_input[CONF_PUMP_HOST],
-                            port=user_input[CONF_PUMP_PORT],
-                            noise_psk=user_input.get(CONF_PUMP_NOISE_PSK) or None,
-                            timeout=DEFAULT_TIMEOUT,
-                        )
-                    if user_input.get(CONF_HEAT_PUMP_HOST):
-                        await _validate_node(
-                            host=user_input[CONF_HEAT_PUMP_HOST],
-                            port=user_input[CONF_HEAT_PUMP_PORT],
-                            noise_psk=user_input.get(CONF_HEAT_PUMP_NOISE_PSK) or None,
-                            timeout=DEFAULT_TIMEOUT,
-                        )
-                except ESPHomeTransportError:
-                    errors["base"] = "cannot_connect"
+                unresolved = [
+                    name
+                    for name in selected
+                    if name.casefold() not in entry_index
+                ]
+                if unresolved:
+                    errors["base"] = "node_not_found"
                 else:
-                    unique_id = "|".join(sorted(hosts))
+                    unique_id = "|".join(sorted(name.casefold() for name in selected))
                     await self.async_set_unique_id(unique_id)
                     self._abort_if_unique_id_configured()
 
@@ -624,15 +637,19 @@ class AtlasScientificPoolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_ACID_RUNNING_BINARY_SENSOR: DEFAULT_ACID_RUNNING_BINARY_SENSOR,
                     }
 
-                    title = f"Pool ({user_input[CONF_CHEMISTRY_HOST]})"
-                    return self.async_create_entry(title=title, data=user_input, options=options)
+                    title = f"Pool ({normalized_input[CONF_CHEMISTRY_NODE]})"
+                    return self.async_create_entry(
+                        title=title,
+                        data=normalized_input,
+                        options=options,
+                    )
 
         return self.async_show_form(
             step_id="user",
-            data_schema=_host_schema(defaults),
+            data_schema=_node_schema(defaults),
             errors=errors,
             description_placeholders={
-                "discovered": ", ".join(sorted(self._discovered_hosts)) or "none"
+                "discovered": ", ".join(available_nodes or discovered_nodes) or "none"
             },
         )
 

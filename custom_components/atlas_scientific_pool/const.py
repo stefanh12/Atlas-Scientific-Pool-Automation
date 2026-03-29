@@ -6,6 +6,12 @@ DOMAIN = "atlas_scientific_pool"
 
 PLATFORMS = ["sensor", "number", "button", "binary_sensor", "switch", "select"]
 
+CONF_CHEMISTRY_NODE = "chemistry_node"
+CONF_PRESSURE_NODE = "pressure_node"
+CONF_LEVEL_NODE = "level_node"
+CONF_PUMP_NODE = "pump_node"
+CONF_HEAT_PUMP_NODE = "heat_pump_node"
+
 CONF_CHEMISTRY_HOST = "chemistry_host"
 CONF_CHEMISTRY_PORT = "chemistry_port"
 CONF_CHEMISTRY_NOISE_PSK = "chemistry_noise_psk"

@@ -13,18 +13,28 @@ from custom_components.atlas_scientific_pool.const import DOMAIN
 
 async def test_setup_entry_creates_coordinator(hass: HomeAssistant) -> None:
     """Integration setup should create and store coordinator."""
+    MockConfigEntry(
+        domain="esphome",
+        title="pool-ezo",
+        data={"host": "pool-ezo.local", "port": 6053, "noise_psk": "a"},
+    ).add_to_hass(hass)
+    MockConfigEntry(
+        domain="esphome",
+        title="pool-pressure",
+        data={"host": "pool-pressure.local", "port": 6053, "noise_psk": "b"},
+    ).add_to_hass(hass)
+    MockConfigEntry(
+        domain="esphome",
+        title="pool-level",
+        data={"host": "pool-level.local", "port": 6053, "noise_psk": "c"},
+    ).add_to_hass(hass)
+
     mock_config_entry = MockConfigEntry(
         domain=DOMAIN,
         data={
-            "chemistry_host": "pool-ezo.local",
-            "chemistry_port": 6053,
-            "chemistry_noise_psk": "a",
-            "pressure_host": "pool-pressure.local",
-            "pressure_port": 6053,
-            "pressure_noise_psk": "b",
-            "level_host": "pool-level.local",
-            "level_port": 6053,
-            "level_noise_psk": "c",
+            "chemistry_node": "pool-ezo",
+            "pressure_node": "pool-pressure",
+            "level_node": "pool-level",
         },
         options={
             "scan_interval": 30,

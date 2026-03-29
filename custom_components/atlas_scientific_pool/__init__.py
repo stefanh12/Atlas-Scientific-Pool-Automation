@@ -7,12 +7,14 @@ from datetime import timedelta
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryNotReady
 
 from .const import (
     CONF_ACID_DOSE_BUTTON,
     CONF_ACID_RUNNING_BINARY_SENSOR,
     CONF_ACID_STOP_BUTTON,
     CONF_ACID_VOLUME_NUMBER,
+    CONF_CHEMISTRY_NODE,
     CONF_CHEMISTRY_HOST,
     CONF_CHEMISTRY_NOISE_PSK,
     CONF_CHEMISTRY_PORT,
@@ -26,6 +28,8 @@ from .const import (
     CONF_ENABLE_CONTROLS,
     CONF_ENABLE_ORP_AUTOMATION,
     CONF_ENABLE_LEVEL_AUTOMATION,
+    CONF_HEAT_PUMP_NODE,
+    CONF_LEVEL_NODE,
     CONF_LEVEL_HOST,
     CONF_LEVEL_HYSTERESIS_PERCENT,
     CONF_LEVEL_NOISE_PSK,
@@ -52,6 +56,7 @@ from .const import (
     CONF_PH_SENSOR_OBJECT_ID,
     CONF_ORP_HYSTERESIS_MV,
     CONF_ORP_SENSOR_OBJECT_ID,
+    CONF_PRESSURE_NODE,
     CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
     CONF_FILL_START_BUTTON_OBJECT_ID,
     CONF_FILL_STOP_BUTTON_OBJECT_ID,
@@ -61,6 +66,7 @@ from .const import (
     CONF_PUMP_HOST,
     CONF_PUMP_NOISE_PSK,
     CONF_PUMP_PORT,
+    CONF_PUMP_NODE,
     CONF_HEAT_PUMP_HOST,
     CONF_HEAT_PUMP_NOISE_PSK,
     CONF_HEAT_PUMP_PORT,
@@ -125,42 +131,171 @@ _PLATFORMS: list[Platform] = [
 ]
 
 
+def _normalize_node_name(value: str | None) -> str:
+    return (value or "").strip()
+
+
+def _esphome_entry_keys(config_entry: ConfigEntry) -> set[str]:
+    keys: set[str] = set()
+    if config_entry.title:
+        keys.add(config_entry.title.casefold())
+    unique_id = str(config_entry.unique_id or "").strip()
+    if unique_id:
+        keys.add(unique_id.casefold())
+    data_name = str(config_entry.data.get("name", "")).strip()
+    if data_name:
+        keys.add(data_name.casefold())
+    return keys
+
+
+def _esphome_entries_index(hass: HomeAssistant) -> dict[str, ConfigEntry]:
+    index: dict[str, ConfigEntry] = {}
+    for esphome_entry in hass.config_entries.async_entries("esphome"):
+        for key in _esphome_entry_keys(esphome_entry):
+            index.setdefault(key, esphome_entry)
+    return index
+
+
+def _legacy_node_config(
+    role: str,
+    options: dict[str, object],
+    *,
+    host_key: str,
+    port_key: str,
+    psk_key: str,
+) -> NodeConfig:
+    return NodeConfig(
+        role=role,
+        host=str(options.get(host_key, "")).strip(),
+        port=int(options.get(port_key, DEFAULT_PORT)),
+        noise_psk=str(options.get(psk_key, "")).strip() or None,
+    )
+
+
+def _node_config_from_esphome(
+    role: str,
+    node_name: str,
+    index: dict[str, ConfigEntry],
+    *,
+    required: bool,
+) -> NodeConfig:
+    normalized = _normalize_node_name(node_name)
+    if not normalized:
+        if required:
+            raise ConfigEntryNotReady(f"Missing required ESPHome node mapping for role '{role}'")
+        return NodeConfig(role=role, host="", port=DEFAULT_PORT, noise_psk=None)
+
+    matched_entry = index.get(normalized.casefold())
+    if matched_entry is None:
+        raise ConfigEntryNotReady(
+            f"ESPHome node '{normalized}' for role '{role}' was not found"
+        )
+
+    host = str(matched_entry.data.get("host", "")).strip()
+    if not host:
+        raise ConfigEntryNotReady(
+            f"ESPHome node '{normalized}' for role '{role}' has no API host"
+        )
+
+    return NodeConfig(
+        role=role,
+        host=host,
+        port=int(matched_entry.data.get("port", DEFAULT_PORT)),
+        noise_psk=str(matched_entry.data.get("noise_psk", "")).strip() or None,
+    )
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Atlas Scientific Pool from a config entry."""
     options = {**entry.data, **entry.options}
 
+    use_esphome_nodes = any(
+        key in entry.data
+        for key in (
+            CONF_CHEMISTRY_NODE,
+            CONF_PRESSURE_NODE,
+            CONF_LEVEL_NODE,
+            CONF_PUMP_NODE,
+            CONF_HEAT_PUMP_NODE,
+        )
+    )
+
+    if use_esphome_nodes:
+        esphome_index = _esphome_entries_index(hass)
+        chemistry_node = _node_config_from_esphome(
+            ROLE_CHEMISTRY,
+            str(options.get(CONF_CHEMISTRY_NODE, "")),
+            esphome_index,
+            required=True,
+        )
+        pressure_node = _node_config_from_esphome(
+            ROLE_PRESSURE,
+            str(options.get(CONF_PRESSURE_NODE, "")),
+            esphome_index,
+            required=True,
+        )
+        level_node = _node_config_from_esphome(
+            ROLE_LEVEL,
+            str(options.get(CONF_LEVEL_NODE, "")),
+            esphome_index,
+            required=True,
+        )
+        pump_node = _node_config_from_esphome(
+            ROLE_PUMP,
+            str(options.get(CONF_PUMP_NODE, "")),
+            esphome_index,
+            required=False,
+        )
+        heat_pump_node = _node_config_from_esphome(
+            ROLE_HEAT_PUMP,
+            str(options.get(CONF_HEAT_PUMP_NODE, "")),
+            esphome_index,
+            required=False,
+        )
+    else:
+        chemistry_node = _legacy_node_config(
+            ROLE_CHEMISTRY,
+            options,
+            host_key=CONF_CHEMISTRY_HOST,
+            port_key=CONF_CHEMISTRY_PORT,
+            psk_key=CONF_CHEMISTRY_NOISE_PSK,
+        )
+        pressure_node = _legacy_node_config(
+            ROLE_PRESSURE,
+            options,
+            host_key=CONF_PRESSURE_HOST,
+            port_key=CONF_PRESSURE_PORT,
+            psk_key=CONF_PRESSURE_NOISE_PSK,
+        )
+        level_node = _legacy_node_config(
+            ROLE_LEVEL,
+            options,
+            host_key=CONF_LEVEL_HOST,
+            port_key=CONF_LEVEL_PORT,
+            psk_key=CONF_LEVEL_NOISE_PSK,
+        )
+        pump_node = _legacy_node_config(
+            ROLE_PUMP,
+            options,
+            host_key=CONF_PUMP_HOST,
+            port_key=CONF_PUMP_PORT,
+            psk_key=CONF_PUMP_NOISE_PSK,
+        )
+        heat_pump_node = _legacy_node_config(
+            ROLE_HEAT_PUMP,
+            options,
+            host_key=CONF_HEAT_PUMP_HOST,
+            port_key=CONF_HEAT_PUMP_PORT,
+            psk_key=CONF_HEAT_PUMP_NOISE_PSK,
+        )
+
     coordinator = AtlasScientificPoolCoordinator(
         hass,
-        chemistry=NodeConfig(
-            role=ROLE_CHEMISTRY,
-            host=options[CONF_CHEMISTRY_HOST],
-            port=options[CONF_CHEMISTRY_PORT],
-            noise_psk=options.get(CONF_CHEMISTRY_NOISE_PSK),
-        ),
-        pressure=NodeConfig(
-            role=ROLE_PRESSURE,
-            host=options[CONF_PRESSURE_HOST],
-            port=options[CONF_PRESSURE_PORT],
-            noise_psk=options.get(CONF_PRESSURE_NOISE_PSK),
-        ),
-        level=NodeConfig(
-            role=ROLE_LEVEL,
-            host=options[CONF_LEVEL_HOST],
-            port=options[CONF_LEVEL_PORT],
-            noise_psk=options.get(CONF_LEVEL_NOISE_PSK),
-        ),
-        pump=NodeConfig(
-            role=ROLE_PUMP,
-            host=str(options.get(CONF_PUMP_HOST, "")),
-            port=int(options.get(CONF_PUMP_PORT, DEFAULT_PORT)),
-            noise_psk=options.get(CONF_PUMP_NOISE_PSK),
-        ),
-        heat_pump=NodeConfig(
-            role=ROLE_HEAT_PUMP,
-            host=str(options.get(CONF_HEAT_PUMP_HOST, "")),
-            port=int(options.get(CONF_HEAT_PUMP_PORT, DEFAULT_PORT)),
-            noise_psk=options.get(CONF_HEAT_PUMP_NOISE_PSK),
-        ),
+        chemistry=chemistry_node,
+        pressure=pressure_node,
+        level=level_node,
+        pump=pump_node,
+        heat_pump=heat_pump_node,
         timeout=float(options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)),
         update_interval=timedelta(
             seconds=int(options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
