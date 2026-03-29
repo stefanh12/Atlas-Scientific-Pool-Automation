@@ -25,6 +25,9 @@
         "/^python3 -m pip install --break-system-packages -r requirements_test\\.txt$/": {
             "approve": true,
             "matchCommandLine": true
-        }
+        },
+        "pushd": true,
+        "python3.12": true,
+        "popd": true
     }
 }

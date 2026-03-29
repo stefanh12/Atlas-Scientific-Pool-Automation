@@ -10,8 +10,12 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.atlas_scientific_pool.const import DOMAIN
 
 
-async def test_user_flow_success(hass: HomeAssistant) -> None:
+async def test_user_flow_success(
+    hass: HomeAssistant,
+    enable_custom_integrations: bool,
+) -> None:
     """Test successful creation of config entry."""
+    del enable_custom_integrations
     for title in ("pool-ezo", "pool-pressure", "pool-level"):
         MockConfigEntry(domain="esphome", title=title).add_to_hass(hass)
 
@@ -37,8 +41,12 @@ async def test_user_flow_success(hass: HomeAssistant) -> None:
     assert result2["options"]["enable_pump_speed_abstraction"] is True
 
 
-async def test_user_flow_rejects_duplicate_nodes(hass: HomeAssistant) -> None:
+async def test_user_flow_rejects_duplicate_nodes(
+    hass: HomeAssistant,
+    enable_custom_integrations: bool,
+) -> None:
     """Ensure node uniqueness validation triggers."""
+    del enable_custom_integrations
     for title in ("same-node", "other-node"):
         MockConfigEntry(domain="esphome", title=title).add_to_hass(hass)
 

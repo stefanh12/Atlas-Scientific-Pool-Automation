@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant
@@ -119,6 +120,7 @@ def coordinator(hass: HomeAssistant) -> AtlasScientificPoolCoordinator:
             ROLE_LEVEL: {"available": True, "states": {}},
         }
     }
+    coord.async_request_refresh = AsyncMock()
     return coord
 
 
@@ -264,32 +266,30 @@ async def test_alert_orp_low_fires_persistent_notification(
     hass: HomeAssistant,
 ) -> None:
     """ORP below alert threshold should fire a persistent_notification."""
-    from unittest.mock import AsyncMock
-    hass.services.async_call = AsyncMock()
-
-    data = {
-        "nodes": {
-            ROLE_CHEMISTRY: {
-                "available": True,
-                "states": {
-                    "orp": 550,
-                    "ph": 7.4,
-                    "pump_cl_state": False,
-                    "pump_acid_state": False,
-                },
+    with patch.object(type(hass.services), "async_call", new=AsyncMock()) as async_call:
+        data = {
+            "nodes": {
+                ROLE_CHEMISTRY: {
+                    "available": True,
+                    "states": {
+                        "orp": 550,
+                        "ph": 7.4,
+                        "pump_cl_state": False,
+                        "pump_acid_state": False,
+                    },
+                }
             }
         }
-    }
 
-    await coordinator._async_check_alerts(data)
+        await coordinator._async_check_alerts(data)
 
-    assert data["alerts"]["orp_low"] is True
-    assert data["alerts"]["ph_low"] is False
-    assert data["alerts"]["ph_high"] is False
-    hass.services.async_call.assert_awaited_once()
-    call_args = hass.services.async_call.call_args
-    assert call_args[0][0] == "persistent_notification"
-    assert "ORP" in call_args[0][2]["title"]
+        assert data["alerts"]["orp_low"] is True
+        assert data["alerts"]["ph_low"] is False
+        assert data["alerts"]["ph_high"] is False
+        async_call.assert_awaited_once()
+        call_args = async_call.call_args
+        assert call_args[0][0] == "persistent_notification"
+        assert "ORP" in call_args[0][2]["title"]
 
 
 async def test_alert_ph_low_fires_persistent_notification(
@@ -297,31 +297,29 @@ async def test_alert_ph_low_fires_persistent_notification(
     hass: HomeAssistant,
 ) -> None:
     """pH below min threshold should fire a persistent_notification."""
-    from unittest.mock import AsyncMock
-    hass.services.async_call = AsyncMock()
-
-    data = {
-        "nodes": {
-            ROLE_CHEMISTRY: {
-                "available": True,
-                "states": {
-                    "orp": 680,
-                    "ph": 7.0,
-                    "pump_cl_state": False,
-                    "pump_acid_state": False,
-                },
+    with patch.object(type(hass.services), "async_call", new=AsyncMock()) as async_call:
+        data = {
+            "nodes": {
+                ROLE_CHEMISTRY: {
+                    "available": True,
+                    "states": {
+                        "orp": 680,
+                        "ph": 7.0,
+                        "pump_cl_state": False,
+                        "pump_acid_state": False,
+                    },
+                }
             }
         }
-    }
 
-    await coordinator._async_check_alerts(data)
+        await coordinator._async_check_alerts(data)
 
-    assert data["alerts"]["ph_low"] is True
-    assert data["alerts"]["ph_high"] is False
-    hass.services.async_call.assert_awaited_once()
-    call_args = hass.services.async_call.call_args
-    assert call_args[0][0] == "persistent_notification"
-    assert "pH" in call_args[0][2]["title"]
+        assert data["alerts"]["ph_low"] is True
+        assert data["alerts"]["ph_high"] is False
+        async_call.assert_awaited_once()
+        call_args = async_call.call_args
+        assert call_args[0][0] == "persistent_notification"
+        assert "pH" in call_args[0][2]["title"]
 
 
 async def test_alert_ph_high_fires_persistent_notification(
@@ -329,31 +327,29 @@ async def test_alert_ph_high_fires_persistent_notification(
     hass: HomeAssistant,
 ) -> None:
     """pH above max threshold should fire a persistent_notification."""
-    from unittest.mock import AsyncMock
-    hass.services.async_call = AsyncMock()
-
-    data = {
-        "nodes": {
-            ROLE_CHEMISTRY: {
-                "available": True,
-                "states": {
-                    "orp": 700,
-                    "ph": 8.1,
-                    "pump_cl_state": False,
-                    "pump_acid_state": False,
-                },
+    with patch.object(type(hass.services), "async_call", new=AsyncMock()) as async_call:
+        data = {
+            "nodes": {
+                ROLE_CHEMISTRY: {
+                    "available": True,
+                    "states": {
+                        "orp": 700,
+                        "ph": 8.1,
+                        "pump_cl_state": False,
+                        "pump_acid_state": False,
+                    },
+                }
             }
         }
-    }
 
-    await coordinator._async_check_alerts(data)
+        await coordinator._async_check_alerts(data)
 
-    assert data["alerts"]["ph_high"] is True
-    assert data["alerts"]["ph_low"] is False
-    hass.services.async_call.assert_awaited_once()
-    call_args = hass.services.async_call.call_args
-    assert call_args[0][0] == "persistent_notification"
-    assert "pH" in call_args[0][2]["title"]
+        assert data["alerts"]["ph_high"] is True
+        assert data["alerts"]["ph_low"] is False
+        async_call.assert_awaited_once()
+        call_args = async_call.call_args
+        assert call_args[0][0] == "persistent_notification"
+        assert "pH" in call_args[0][2]["title"]
 
 
 async def test_alert_no_notification_during_cooldown(
@@ -361,28 +357,26 @@ async def test_alert_no_notification_during_cooldown(
     hass: HomeAssistant,
 ) -> None:
     """A second ORP alert within the cooldown window should not fire a new notification."""
-    from unittest.mock import AsyncMock
-    hass.services.async_call = AsyncMock()
+    with patch.object(type(hass.services), "async_call", new=AsyncMock()) as async_call:
+        coordinator._last_alert_at["orp_low"] = datetime.now(tz=UTC)
 
-    coordinator._last_alert_at["orp_low"] = datetime.now(tz=UTC)
-
-    data = {
-        "nodes": {
-            ROLE_CHEMISTRY: {
-                "available": True,
-                "states": {
-                    "orp": 550,
-                    "ph": 7.4,
-                    "pump_cl_state": False,
-                    "pump_acid_state": False,
-                },
+        data = {
+            "nodes": {
+                ROLE_CHEMISTRY: {
+                    "available": True,
+                    "states": {
+                        "orp": 550,
+                        "ph": 7.4,
+                        "pump_cl_state": False,
+                        "pump_acid_state": False,
+                    },
+                }
             }
         }
-    }
 
-    await coordinator._async_check_alerts(data)
+        await coordinator._async_check_alerts(data)
 
-    hass.services.async_call.assert_not_awaited()
+        async_call.assert_not_awaited()
 
 
 async def test_water_level_automation_stops_fill_on_runtime_timeout(
