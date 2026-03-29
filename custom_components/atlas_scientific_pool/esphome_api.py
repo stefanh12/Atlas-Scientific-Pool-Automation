@@ -146,6 +146,32 @@ class ESPHomeNodeClient:
 
         self._api.number_command(key, float(value))  # type: ignore[union-attr]
 
+    async def set_switch(self, object_id: str, is_on: bool) -> None:
+        """Set a switch entity value on the node."""
+        await self.connect()
+        info = self._snapshot.infos_by_object_id.get(object_id)
+        if info is None:
+            raise ESPHomeTransportError(f"Switch object_id '{object_id}' not found")
+
+        key = getattr(info, "key", None)
+        if key is None:
+            raise ESPHomeTransportError(f"Switch '{object_id}' has no key")
+
+        self._api.switch_command(key, bool(is_on))  # type: ignore[union-attr]
+
+    async def set_select(self, object_id: str, option: str) -> None:
+        """Set a select entity option on the node."""
+        await self.connect()
+        info = self._snapshot.infos_by_object_id.get(object_id)
+        if info is None:
+            raise ESPHomeTransportError(f"Select object_id '{object_id}' not found")
+
+        key = getattr(info, "key", None)
+        if key is None:
+            raise ESPHomeTransportError(f"Select '{object_id}' has no key")
+
+        self._api.select_command(key, str(option))  # type: ignore[union-attr]
+
     def value_for_object_id(self, object_id: str) -> Any | None:
         """Return latest state object for an object_id."""
         info = self._snapshot.infos_by_object_id.get(object_id)
@@ -185,5 +211,21 @@ class ESPHomeNodeClient:
         result: list[str] = []
         for object_id, info in self._snapshot.infos_by_object_id.items():
             if "button" in type(info).__name__.lower():
+                result.append(object_id)
+        return result
+
+    def all_switch_object_ids(self) -> list[str]:
+        """Return object IDs for switch entities."""
+        result: list[str] = []
+        for object_id, info in self._snapshot.infos_by_object_id.items():
+            if "switch" in type(info).__name__.lower():
+                result.append(object_id)
+        return result
+
+    def all_select_object_ids(self) -> list[str]:
+        """Return object IDs for select entities."""
+        result: list[str] = []
+        for object_id, info in self._snapshot.infos_by_object_id.items():
+            if "select" in type(info).__name__.lower():
                 result.append(object_id)
         return result

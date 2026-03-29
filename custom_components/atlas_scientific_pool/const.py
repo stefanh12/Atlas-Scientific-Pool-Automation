@@ -4,7 +4,7 @@ from __future__ import annotations
 
 DOMAIN = "atlas_scientific_pool"
 
-PLATFORMS = ["sensor", "number", "button", "binary_sensor"]
+PLATFORMS = ["sensor", "number", "button", "binary_sensor", "switch", "select"]
 
 CONF_CHEMISTRY_HOST = "chemistry_host"
 CONF_CHEMISTRY_PORT = "chemistry_port"
@@ -15,6 +15,12 @@ CONF_PRESSURE_NOISE_PSK = "pressure_noise_psk"
 CONF_LEVEL_HOST = "level_host"
 CONF_LEVEL_PORT = "level_port"
 CONF_LEVEL_NOISE_PSK = "level_noise_psk"
+CONF_PUMP_HOST = "pump_host"
+CONF_PUMP_PORT = "pump_port"
+CONF_PUMP_NOISE_PSK = "pump_noise_psk"
+CONF_HEAT_PUMP_HOST = "heat_pump_host"
+CONF_HEAT_PUMP_PORT = "heat_pump_port"
+CONF_HEAT_PUMP_NOISE_PSK = "heat_pump_noise_psk"
 
 CONF_SCAN_INTERVAL = "scan_interval"
 CONF_TIMEOUT = "timeout"
@@ -49,6 +55,12 @@ CONF_PH_MIN_THRESHOLD = "ph_min_threshold"
 CONF_PH_MAX_THRESHOLD = "ph_max_threshold"
 CONF_ORP_ALERT_THRESHOLD = "orp_alert_threshold"
 CONF_NOTIFICATION_COOLDOWN_MINUTES = "notification_cooldown_minutes"
+CONF_EXPOSE_RAW_PUMP_SWITCHES = "expose_raw_pump_switches"
+CONF_ENABLE_PUMP_SPEED_ABSTRACTION = "enable_pump_speed_abstraction"
+CONF_PUMP_POWER_SWITCH_OBJECT_ID = "pump_power_switch_object_id"
+CONF_PUMP_SPEED_LOW_SWITCH_OBJECT_ID = "pump_speed_low_switch_object_id"
+CONF_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID = "pump_speed_medium_switch_object_id"
+CONF_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID = "pump_speed_high_switch_object_id"
 
 CONF_CHLORINE_VOLUME_NUMBER = "chlorine_volume_number"
 CONF_ACID_VOLUME_NUMBER = "acid_volume_number"
@@ -94,6 +106,12 @@ DEFAULT_PH_MIN_THRESHOLD = 7.2
 DEFAULT_PH_MAX_THRESHOLD = 7.8
 DEFAULT_ORP_ALERT_THRESHOLD = 600.0
 DEFAULT_NOTIFICATION_COOLDOWN_MINUTES = 60
+DEFAULT_EXPOSE_RAW_PUMP_SWITCHES = False
+DEFAULT_ENABLE_PUMP_SPEED_ABSTRACTION = True
+DEFAULT_PUMP_POWER_SWITCH_OBJECT_ID = "relay4"
+DEFAULT_PUMP_SPEED_LOW_SWITCH_OBJECT_ID = "relay3"
+DEFAULT_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID = "relay2"
+DEFAULT_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID = "relay1"
 
 ALERT_ORP_LOW = "orp_low"
 ALERT_PH_LOW = "ph_low"
@@ -111,4 +129,6 @@ DEFAULT_ACID_RUNNING_BINARY_SENSOR = "pump_acid_state"
 ROLE_CHEMISTRY = "chemistry"
 ROLE_PRESSURE = "pressure"
 ROLE_LEVEL = "level"
-NODE_ROLES = (ROLE_CHEMISTRY, ROLE_PRESSURE, ROLE_LEVEL)
+ROLE_PUMP = "pump"
+ROLE_HEAT_PUMP = "heat_pump"
+NODE_ROLES = (ROLE_CHEMISTRY, ROLE_PRESSURE, ROLE_LEVEL, ROLE_PUMP, ROLE_HEAT_PUMP)

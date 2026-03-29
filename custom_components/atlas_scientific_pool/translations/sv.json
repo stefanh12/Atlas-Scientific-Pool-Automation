@@ -14,12 +14,20 @@
           "pressure_noise_psk": "Filtretrycksnodenskrypteringsnyckel",
           "level_host": "Vattennivånodensvärd",
           "level_port": "Vattennivånodensport",
-          "level_noise_psk": "Vattennivånodenskrypteringsnyckel"
+          "level_noise_psk": "Vattennivånodenskrypteringsnyckel",
+          "pump_host": "Poolpumpnodens värdadress (valfritt)",
+          "pump_port": "Poolpumpnodens port",
+          "pump_noise_psk": "Poolpumpnodens krypteringsnyckel",
+          "heat_pump_host": "Värmepumpsnodens värdadress (valfritt)",
+          "heat_pump_port": "Värmepumpsnodens port",
+          "heat_pump_noise_psk": "Värmepumpsnodens krypteringsnyckel"
         },
         "data_description": {
           "chemistry_noise_psk": "Lämna tomt om ESPHome-noden inte använder API-kryptering",
           "pressure_noise_psk": "Lämna tomt om ESPHome-noden inte använder API-kryptering",
-          "level_noise_psk": "Lämna tomt om ESPHome-noden inte använder API-kryptering"
+          "level_noise_psk": "Lämna tomt om ESPHome-noden inte använder API-kryptering",
+          "pump_noise_psk": "Lämna tomt om ESPHome-noden inte använder API-kryptering",
+          "heat_pump_noise_psk": "Lämna tomt om ESPHome-noden inte använder API-kryptering"
         }
       }
     },
@@ -68,6 +76,12 @@
           "ph_max_threshold": "Larm vid högt pH",
           "orp_alert_threshold": "Larm vid lågt ORP (mV)",
           "notification_cooldown_minutes": "Minsta antal minuter mellan upprepade larm",
+          "expose_raw_pump_switches": "Visa råa reläswitchar för poolpump",
+          "enable_pump_speed_abstraction": "Aktivera förenklade pumpfartskontroller",
+          "pump_power_switch_object_id": "Pumpens huvudströmbrytare object_id",
+          "pump_speed_low_switch_object_id": "Pump lågfartsbrytare object_id (1200 RPM)",
+          "pump_speed_medium_switch_object_id": "Pump mellanfartsbrytare object_id (2400 RPM)",
+          "pump_speed_high_switch_object_id": "Pump högfartsbrytare object_id (2900 RPM)",
           "chlorine_volume_number": "ESPHome klorvolym-nummer object_id",
           "acid_volume_number": "ESPHome syravolym-nummer object_id",
           "chlorine_dose_button": "ESPHome klordoseringsknapp object_id",
@@ -98,6 +112,12 @@
           "notify_service": "Fullständigt HA-tjänstnamn, t.ex. notify.mobile_app_mintelefon. Lämna tomt för att bara använda aviseringspanelen i HA",
           "ph_sensor_object_id": "Måste matcha object_id för pH-sensorn i din ESPHome YAML",
           "notification_cooldown_minutes": "Förhindrar upprepade aviseringar för samma aktiva tillstånd",
+          "expose_raw_pump_switches": "Avstängd som standard för att undvika låg-nivå relästyrning. Aktivera endast om du vill ha direkta reläentiteter i Home Assistant",
+          "enable_pump_speed_abstraction": "Skapar en förenklad poolpumpsswitch och en hastighetsväljare i Home Assistant",
+          "pump_power_switch_object_id": "Object ID för pumpens ON/OFF-relä",
+          "pump_speed_low_switch_object_id": "Object ID för lågfartsrelä (1200 RPM)",
+          "pump_speed_medium_switch_object_id": "Object ID för mellanfartsrelä (2400 RPM)",
+          "pump_speed_high_switch_object_id": "Object ID för högfartsrelä (2900 RPM)",
           "chlorine_volume_number": "Måste matcha object_id för klorvolymens nummer i din ESPHome YAML",
           "acid_volume_number": "Måste matcha object_id för syravolymens nummer i din ESPHome YAML",
           "chlorine_dose_button": "Måste matcha object_id för klordoseringsknappen i din ESPHome YAML",

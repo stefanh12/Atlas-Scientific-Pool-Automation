@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from homeassistant.components.number import NumberEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfVolume
@@ -10,8 +12,14 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, ROLE_CHEMISTRY, ROLE_LEVEL
+from .const import DOMAIN, ROLE_CHEMISTRY, ROLE_HEAT_PUMP, ROLE_LEVEL, ROLE_PUMP
 from .coordinator import AtlasScientificPoolCoordinator
+
+
+@dataclass(slots=True)
+class DynamicNumberDescription:
+    role: str
+    object_id: str
 
 
 class AtlasScientificDoseNumber(
@@ -146,6 +154,54 @@ class AtlasScientificTargetWaterLevelNumber(
         self.async_write_ha_state()
 
 
+class AtlasScientificDynamicNodeNumber(
+    CoordinatorEntity[AtlasScientificPoolCoordinator], NumberEntity
+):
+    """Pass-through number entity for external optional nodes."""
+
+    _attr_has_entity_name = True
+
+    def __init__(
+        self,
+        coordinator: AtlasScientificPoolCoordinator,
+        entry: ConfigEntry,
+        description: DynamicNumberDescription,
+    ) -> None:
+        super().__init__(coordinator)
+        self._description = description
+        self._attr_unique_id = f"{entry.entry_id}_{description.role}_{description.object_id}_number"
+        self._attr_name = description.object_id.replace("_", " ")
+
+    @property
+    def native_value(self) -> float | None:
+        value = self.coordinator.state_value(self._description.role, self._description.object_id)
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.node_available(self._description.role)
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        node = self.coordinator.data.get("nodes", {}).get(self._description.role, {})
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"node_{self._description.role}")},
+            name=node.get("device_name", self._description.role),
+            model=node.get("model"),
+            manufacturer="ESPHome",
+        )
+
+    async def async_set_native_value(self, value: float) -> None:
+        await self.coordinator.async_set_node_number(
+            self._description.role,
+            self._description.object_id,
+            value,
+        )
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -154,29 +210,40 @@ async def async_setup_entry(
     coordinator: AtlasScientificPoolCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     safety = coordinator.safety
-    async_add_entities(
-        [
-            AtlasScientificDoseNumber(
-                coordinator,
-                entry,
-                key="chlorine_dose_target",
-                set_target="chlorine",
-                default_value=safety.default_chlorine_dose_ml,
-            ),
-            AtlasScientificDoseNumber(
-                coordinator,
-                entry,
-                key="acid_dose_target",
-                set_target="acid",
-                default_value=safety.default_acid_dose_ml,
-            ),
-            AtlasScientificTargetOrpNumber(
-                coordinator,
-                entry,
-            ),
-            AtlasScientificTargetWaterLevelNumber(
-                coordinator,
-                entry,
-            ),
-        ]
-    )
+    entities: list[NumberEntity] = [
+        AtlasScientificDoseNumber(
+            coordinator,
+            entry,
+            key="chlorine_dose_target",
+            set_target="chlorine",
+            default_value=safety.default_chlorine_dose_ml,
+        ),
+        AtlasScientificDoseNumber(
+            coordinator,
+            entry,
+            key="acid_dose_target",
+            set_target="acid",
+            default_value=safety.default_acid_dose_ml,
+        ),
+        AtlasScientificTargetOrpNumber(
+            coordinator,
+            entry,
+        ),
+        AtlasScientificTargetWaterLevelNumber(
+            coordinator,
+            entry,
+        ),
+    ]
+
+    for role in (ROLE_PUMP, ROLE_HEAT_PUMP):
+        node = coordinator.data.get("nodes", {}).get(role, {}) if coordinator.data else {}
+        for object_id in node.get("number_object_ids", []):
+            entities.append(
+                AtlasScientificDynamicNodeNumber(
+                    coordinator,
+                    entry,
+                    DynamicNumberDescription(role=role, object_id=object_id),
+                )
+            )
+
+    async_add_entities(entities)

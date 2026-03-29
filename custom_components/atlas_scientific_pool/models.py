@@ -31,6 +31,10 @@ class NodeCommandMap:
     fill_start_button_object_id: str
     fill_stop_button_object_id: str
     fill_running_binary_sensor_object_id: str
+    pump_power_switch_object_id: str
+    pump_speed_low_switch_object_id: str
+    pump_speed_medium_switch_object_id: str
+    pump_speed_high_switch_object_id: str
 
 
 @dataclass(slots=True)

@@ -39,6 +39,12 @@ from .const import (
     CONF_NOTIFICATION_COOLDOWN_MINUTES,
     CONF_NOTIFY_SERVICE,
     CONF_ORP_ALERT_THRESHOLD,
+    CONF_EXPOSE_RAW_PUMP_SWITCHES,
+    CONF_ENABLE_PUMP_SPEED_ABSTRACTION,
+    CONF_PUMP_POWER_SWITCH_OBJECT_ID,
+    CONF_PUMP_SPEED_LOW_SWITCH_OBJECT_ID,
+    CONF_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID,
+    CONF_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID,
     CONF_ORP_HYSTERESIS_MV,
     CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
     CONF_FILL_START_BUTTON_OBJECT_ID,
@@ -56,6 +62,12 @@ from .const import (
     CONF_PRESSURE_HOST,
     CONF_PRESSURE_NOISE_PSK,
     CONF_PRESSURE_PORT,
+    CONF_PUMP_HOST,
+    CONF_PUMP_NOISE_PSK,
+    CONF_PUMP_PORT,
+    CONF_HEAT_PUMP_HOST,
+    CONF_HEAT_PUMP_NOISE_PSK,
+    CONF_HEAT_PUMP_PORT,
     CONF_SCAN_INTERVAL,
     CONF_DEFAULT_TARGET_WATER_LEVEL_PERCENT,
     CONF_TIMEOUT,
@@ -84,6 +96,12 @@ from .const import (
     DEFAULT_NOTIFICATION_COOLDOWN_MINUTES,
     DEFAULT_NOTIFY_SERVICE,
     DEFAULT_ORP_ALERT_THRESHOLD,
+    DEFAULT_EXPOSE_RAW_PUMP_SWITCHES,
+    DEFAULT_ENABLE_PUMP_SPEED_ABSTRACTION,
+    DEFAULT_PUMP_POWER_SWITCH_OBJECT_ID,
+    DEFAULT_PUMP_SPEED_LOW_SWITCH_OBJECT_ID,
+    DEFAULT_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID,
+    DEFAULT_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID,
     DEFAULT_ORP_HYSTERESIS_MV,
     DEFAULT_POOL_VOLUME_LITERS,
     DEFAULT_CHLORINE_STRENGTH_PERCENT,
@@ -131,6 +149,26 @@ def _host_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Optional(
                 CONF_LEVEL_NOISE_PSK,
                 default=defaults.get(CONF_LEVEL_NOISE_PSK, ""),
+            ): str,
+            vol.Optional(CONF_PUMP_HOST, default=defaults.get(CONF_PUMP_HOST, "")): str,
+            vol.Optional(
+                CONF_PUMP_PORT, default=defaults.get(CONF_PUMP_PORT, DEFAULT_PORT)
+            ): int,
+            vol.Optional(
+                CONF_PUMP_NOISE_PSK,
+                default=defaults.get(CONF_PUMP_NOISE_PSK, ""),
+            ): str,
+            vol.Optional(
+                CONF_HEAT_PUMP_HOST,
+                default=defaults.get(CONF_HEAT_PUMP_HOST, ""),
+            ): str,
+            vol.Optional(
+                CONF_HEAT_PUMP_PORT,
+                default=defaults.get(CONF_HEAT_PUMP_PORT, DEFAULT_PORT),
+            ): int,
+            vol.Optional(
+                CONF_HEAT_PUMP_NOISE_PSK,
+                default=defaults.get(CONF_HEAT_PUMP_NOISE_PSK, ""),
             ): str,
         }
     )
@@ -363,6 +401,48 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
                 )
             ),
             vol.Required(
+                CONF_EXPOSE_RAW_PUMP_SWITCHES,
+                default=defaults.get(
+                    CONF_EXPOSE_RAW_PUMP_SWITCHES,
+                    DEFAULT_EXPOSE_RAW_PUMP_SWITCHES,
+                ),
+            ): bool,
+            vol.Required(
+                CONF_ENABLE_PUMP_SPEED_ABSTRACTION,
+                default=defaults.get(
+                    CONF_ENABLE_PUMP_SPEED_ABSTRACTION,
+                    DEFAULT_ENABLE_PUMP_SPEED_ABSTRACTION,
+                ),
+            ): bool,
+            vol.Required(
+                CONF_PUMP_POWER_SWITCH_OBJECT_ID,
+                default=defaults.get(
+                    CONF_PUMP_POWER_SWITCH_OBJECT_ID,
+                    DEFAULT_PUMP_POWER_SWITCH_OBJECT_ID,
+                ),
+            ): str,
+            vol.Required(
+                CONF_PUMP_SPEED_LOW_SWITCH_OBJECT_ID,
+                default=defaults.get(
+                    CONF_PUMP_SPEED_LOW_SWITCH_OBJECT_ID,
+                    DEFAULT_PUMP_SPEED_LOW_SWITCH_OBJECT_ID,
+                ),
+            ): str,
+            vol.Required(
+                CONF_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID,
+                default=defaults.get(
+                    CONF_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID,
+                    DEFAULT_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID,
+                ),
+            ): str,
+            vol.Required(
+                CONF_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID,
+                default=defaults.get(
+                    CONF_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID,
+                    DEFAULT_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID,
+                ),
+            ): str,
+            vol.Required(
                 CONF_CHLORINE_VOLUME_NUMBER,
                 default=defaults.get(CONF_CHLORINE_VOLUME_NUMBER, DEFAULT_CHLORINE_VOLUME_NUMBER),
             ): str,
@@ -442,11 +522,17 @@ class AtlasScientificPoolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             self._user_input = user_input
 
-            if len({
+            hosts = [
                 user_input[CONF_CHEMISTRY_HOST],
                 user_input[CONF_PRESSURE_HOST],
                 user_input[CONF_LEVEL_HOST],
-            }) != 3:
+            ]
+            if user_input.get(CONF_PUMP_HOST):
+                hosts.append(user_input[CONF_PUMP_HOST])
+            if user_input.get(CONF_HEAT_PUMP_HOST):
+                hosts.append(user_input[CONF_HEAT_PUMP_HOST])
+
+            if len(set(hosts)) != len(hosts):
                 errors["base"] = "hosts_must_be_unique"
             else:
                 try:
@@ -468,18 +554,24 @@ class AtlasScientificPoolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         noise_psk=user_input.get(CONF_LEVEL_NOISE_PSK) or None,
                         timeout=DEFAULT_TIMEOUT,
                     )
+                    if user_input.get(CONF_PUMP_HOST):
+                        await _validate_node(
+                            host=user_input[CONF_PUMP_HOST],
+                            port=user_input[CONF_PUMP_PORT],
+                            noise_psk=user_input.get(CONF_PUMP_NOISE_PSK) or None,
+                            timeout=DEFAULT_TIMEOUT,
+                        )
+                    if user_input.get(CONF_HEAT_PUMP_HOST):
+                        await _validate_node(
+                            host=user_input[CONF_HEAT_PUMP_HOST],
+                            port=user_input[CONF_HEAT_PUMP_PORT],
+                            noise_psk=user_input.get(CONF_HEAT_PUMP_NOISE_PSK) or None,
+                            timeout=DEFAULT_TIMEOUT,
+                        )
                 except ESPHomeTransportError:
                     errors["base"] = "cannot_connect"
                 else:
-                    unique_id = "|".join(
-                        sorted(
-                            [
-                                user_input[CONF_CHEMISTRY_HOST],
-                                user_input[CONF_PRESSURE_HOST],
-                                user_input[CONF_LEVEL_HOST],
-                            ]
-                        )
-                    )
+                    unique_id = "|".join(sorted(hosts))
                     await self.async_set_unique_id(unique_id)
                     self._abort_if_unique_id_configured()
 
@@ -516,6 +608,12 @@ class AtlasScientificPoolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_PH_MAX_THRESHOLD: DEFAULT_PH_MAX_THRESHOLD,
                         CONF_ORP_ALERT_THRESHOLD: DEFAULT_ORP_ALERT_THRESHOLD,
                         CONF_NOTIFICATION_COOLDOWN_MINUTES: DEFAULT_NOTIFICATION_COOLDOWN_MINUTES,
+                        CONF_EXPOSE_RAW_PUMP_SWITCHES: DEFAULT_EXPOSE_RAW_PUMP_SWITCHES,
+                        CONF_ENABLE_PUMP_SPEED_ABSTRACTION: DEFAULT_ENABLE_PUMP_SPEED_ABSTRACTION,
+                        CONF_PUMP_POWER_SWITCH_OBJECT_ID: DEFAULT_PUMP_POWER_SWITCH_OBJECT_ID,
+                        CONF_PUMP_SPEED_LOW_SWITCH_OBJECT_ID: DEFAULT_PUMP_SPEED_LOW_SWITCH_OBJECT_ID,
+                        CONF_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID: DEFAULT_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID,
+                        CONF_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID: DEFAULT_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID,
                         CONF_CHLORINE_VOLUME_NUMBER: DEFAULT_CHLORINE_VOLUME_NUMBER,
                         CONF_ACID_VOLUME_NUMBER: DEFAULT_ACID_VOLUME_NUMBER,
                         CONF_CHLORINE_DOSE_BUTTON: DEFAULT_CHLORINE_DOSE_BUTTON,

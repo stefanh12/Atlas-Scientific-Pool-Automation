@@ -15,7 +15,9 @@ from .const import (
     ALERT_PH_HIGH,
     ALERT_PH_LOW,
     ROLE_CHEMISTRY,
+    ROLE_HEAT_PUMP,
     ROLE_LEVEL,
+    ROLE_PUMP,
 )
 from .esphome_api import ESPHomeNodeClient, ESPHomeTransportError
 from .models import CooldownState, NodeCommandMap, NodeConfig, SafetyConfig
@@ -47,6 +49,8 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         chemistry: NodeConfig,
         pressure: NodeConfig,
         level: NodeConfig,
+        pump: NodeConfig | None,
+        heat_pump: NodeConfig | None,
         timeout: float,
         update_interval: timedelta,
         safety: SafetyConfig,
@@ -61,15 +65,16 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             always_update=False,
         )
 
-        self._clients: dict[str, ESPHomeNodeClient] = {
-            chemistry.role: ESPHomeNodeClient(
-                chemistry.host, chemistry.port, chemistry.noise_psk, timeout
-            ),
-            pressure.role: ESPHomeNodeClient(
-                pressure.host, pressure.port, pressure.noise_psk, timeout
-            ),
-            level.role: ESPHomeNodeClient(level.host, level.port, level.noise_psk, timeout),
-        }
+        self._clients: dict[str, ESPHomeNodeClient] = {}
+        for node in (chemistry, pressure, level, pump, heat_pump):
+            if node is None or not node.host.strip():
+                continue
+            self._clients[node.role] = ESPHomeNodeClient(
+                node.host,
+                node.port,
+                node.noise_psk,
+                timeout,
+            )
 
         self._safety = safety
         self._command_map = command_map
@@ -104,6 +109,12 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "sensor_object_ids": client.all_sensor_object_ids(),
                     "number_object_ids": client.all_number_object_ids(),
                     "button_object_ids": client.all_button_object_ids(),
+                    "switch_object_ids": client.all_switch_object_ids(),
+                    "select_object_ids": client.all_select_object_ids(),
+                    "select_options": {
+                        object_id: list(getattr(snapshot.infos_by_object_id.get(object_id), "options", []))
+                        for object_id in client.all_select_object_ids()
+                    },
                     "states": {
                         object_id: client.state_value(object_id)
                         for object_id in snapshot.infos_by_object_id
@@ -397,6 +408,79 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         node = self.data.get("nodes", {}).get(role, {}) if self.data else {}
         return node.get("states", {}).get(object_id)
 
+    async def async_set_node_number(self, role: str, object_id: str, value: float) -> None:
+        """Set a number entity on a specific node and refresh."""
+        client = self._clients.get(role)
+        if client is None:
+            raise DoseSafetyError(f"Node '{role}' is not configured")
+        await client.set_number(object_id, value)
+        await self.async_request_refresh()
+
+    async def async_set_node_switch(self, role: str, object_id: str, is_on: bool) -> None:
+        """Set a switch entity on a specific node and refresh."""
+        client = self._clients.get(role)
+        if client is None:
+            raise DoseSafetyError(f"Node '{role}' is not configured")
+        await client.set_switch(object_id, is_on)
+        await self.async_request_refresh()
+
+    async def async_set_node_select(self, role: str, object_id: str, option: str) -> None:
+        """Set a select entity on a specific node and refresh."""
+        client = self._clients.get(role)
+        if client is None:
+            raise DoseSafetyError(f"Node '{role}' is not configured")
+        await client.set_select(object_id, option)
+        await self.async_request_refresh()
+
+    async def async_set_pool_pump_power(self, is_on: bool) -> None:
+        """Set friendly pool-pump power state using mapped object IDs."""
+        pump_client = self._clients.get(ROLE_PUMP)
+        if pump_client is None:
+            raise DoseSafetyError("Node 'pump' is not configured")
+
+        await pump_client.set_switch(self._command_map.pump_power_switch_object_id, is_on)
+        if not is_on:
+            # Ensure no speed relay stays active when master power is off.
+            for object_id in (
+                self._command_map.pump_speed_low_switch_object_id,
+                self._command_map.pump_speed_medium_switch_object_id,
+                self._command_map.pump_speed_high_switch_object_id,
+            ):
+                if object_id:
+                    await pump_client.set_switch(object_id, False)
+        await self.async_request_refresh()
+
+    async def async_set_pool_pump_speed(self, speed: str) -> None:
+        """Set friendly pool-pump speed mapped to relay switches."""
+        pump_client = self._clients.get(ROLE_PUMP)
+        if pump_client is None:
+            raise DoseSafetyError("Node 'pump' is not configured")
+
+        speed_normalized = speed.strip().lower()
+        speed_map = {
+            "1200": self._command_map.pump_speed_low_switch_object_id,
+            "2400": self._command_map.pump_speed_medium_switch_object_id,
+            "2900": self._command_map.pump_speed_high_switch_object_id,
+        }
+        if speed_normalized not in {"off", *speed_map.keys()}:
+            raise DoseSafetyError(f"Unsupported pump speed '{speed}'")
+
+        # Reset all speed relays before activating the chosen one.
+        for object_id in speed_map.values():
+            if object_id:
+                await pump_client.set_switch(object_id, False)
+
+        if speed_normalized == "off":
+            await pump_client.set_switch(self._command_map.pump_power_switch_object_id, False)
+            await self.async_request_refresh()
+            return
+
+        await pump_client.set_switch(self._command_map.pump_power_switch_object_id, True)
+        target_object_id = speed_map[speed_normalized]
+        if target_object_id:
+            await pump_client.set_switch(target_object_id, True)
+        await self.async_request_refresh()
+
     @property
     def safety(self) -> SafetyConfig:
         """Expose immutable safety settings."""
@@ -479,6 +563,11 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if not self._safety.controls_enabled:
             raise DoseSafetyError("Pump controls are disabled in options")
 
+    def _is_pool_pump_running(self) -> bool:
+        """Return whether the configured pool pump power switch reports ON."""
+        state = self.state_value(ROLE_PUMP, self._command_map.pump_power_switch_object_id)
+        return _as_bool(state)
+
     def _chlorine_pool_size_cap_ml(self) -> float:
         """Return max chlorine dose in ml based on pool volume and chemistry settings."""
         strength = self._safety.chlorine_strength_percent
@@ -544,6 +633,13 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             raise DoseSafetyError(
                 f"Dose {volume_ml} ml exceeds maximum {round(effective_max, 1)} ml"
             )
+
+        # Chemical dosing is only allowed while the circulation pump is running.
+        if ROLE_PUMP in self._clients:
+            if not self.node_available(ROLE_PUMP):
+                raise DoseSafetyError("Pool pump state unavailable; dosing blocked for safety")
+            if not self._is_pool_pump_running():
+                raise DoseSafetyError("Cannot dose chemicals while the pool pump is not running")
 
         if is_chlorine:
             state_source = chemistry_states or {}

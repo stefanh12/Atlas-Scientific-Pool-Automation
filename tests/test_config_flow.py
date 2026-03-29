@@ -41,6 +41,8 @@ async def test_user_flow_success(hass: HomeAssistant) -> None:
     assert result2["type"] == FlowResultType.CREATE_ENTRY
     assert result2["title"] == "Pool (pool-ezo.local)"
     assert result2["options"]["max_fill_runtime_minutes"] == 45
+    assert result2["options"]["expose_raw_pump_switches"] is False
+    assert result2["options"]["enable_pump_speed_abstraction"] is True
 
 
 async def test_user_flow_rejects_duplicate_hosts(hass: HomeAssistant) -> None:

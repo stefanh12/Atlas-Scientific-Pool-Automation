@@ -15,12 +15,20 @@
           "pressure_noise_psk": "Filter pressure node encryption key",
           "level_host": "Water level node host",
           "level_port": "Water level node port",
-          "level_noise_psk": "Water level node encryption key"
+          "level_noise_psk": "Water level node encryption key",
+          "pump_host": "Pool pump node host (optional)",
+          "pump_port": "Pool pump node port",
+          "pump_noise_psk": "Pool pump node encryption key",
+          "heat_pump_host": "Heat pump node host (optional)",
+          "heat_pump_port": "Heat pump node port",
+          "heat_pump_noise_psk": "Heat pump node encryption key"
         },
         "data_description": {
           "chemistry_noise_psk": "Leave empty if the ESPHome node does not use API encryption",
           "pressure_noise_psk": "Leave empty if the ESPHome node does not use API encryption",
-          "level_noise_psk": "Leave empty if the ESPHome node does not use API encryption"
+          "level_noise_psk": "Leave empty if the ESPHome node does not use API encryption",
+          "pump_noise_psk": "Leave empty if the ESPHome node does not use API encryption",
+          "heat_pump_noise_psk": "Leave empty if the ESPHome node does not use API encryption"
         }
       }
     },
@@ -69,6 +77,12 @@
           "ph_max_threshold": "pH high alert threshold",
           "orp_alert_threshold": "ORP low alert threshold (mV)",
           "notification_cooldown_minutes": "Minimum minutes between repeat alerts",
+          "expose_raw_pump_switches": "Expose raw pump relay switches",
+          "enable_pump_speed_abstraction": "Enable friendly pump speed controls",
+          "pump_power_switch_object_id": "Pump master power switch object_id",
+          "pump_speed_low_switch_object_id": "Pump low-speed switch object_id (1200 RPM)",
+          "pump_speed_medium_switch_object_id": "Pump medium-speed switch object_id (2400 RPM)",
+          "pump_speed_high_switch_object_id": "Pump high-speed switch object_id (2900 RPM)",
           "chlorine_volume_number": "ESPHome chlorine volume number object_id",
           "acid_volume_number": "ESPHome acid volume number object_id",
           "chlorine_dose_button": "ESPHome chlorine dose button object_id",
@@ -99,6 +113,12 @@
           "notify_service": "Full HA service name, e.g. notify.mobile_app_myphone. Leave empty to use only the persistent notification panel",
           "ph_sensor_object_id": "Must match the object_id of the pH sensor in your ESPHome YAML",
           "notification_cooldown_minutes": "Prevents repeated notifications for the same active condition",
+          "expose_raw_pump_switches": "Off by default to avoid exposing low-level relay controls. Enable only if you want direct relay entities in Home Assistant",
+          "enable_pump_speed_abstraction": "Creates a friendly pool pump switch and speed selector in Home Assistant",
+          "pump_power_switch_object_id": "Object ID for the pump ON/OFF relay",
+          "pump_speed_low_switch_object_id": "Object ID for low speed relay (1200 RPM)",
+          "pump_speed_medium_switch_object_id": "Object ID for medium speed relay (2400 RPM)",
+          "pump_speed_high_switch_object_id": "Object ID for high speed relay (2900 RPM)",
           "chlorine_volume_number": "Must match the object_id of the chlorine volume number in your ESPHome YAML",
           "acid_volume_number": "Must match the object_id of the acid volume number in your ESPHome YAML",
           "chlorine_dose_button": "Must match the object_id of the chlorine dose button in your ESPHome YAML",

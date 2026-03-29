@@ -43,9 +43,10 @@ from .const import (
     CONF_NOTIFICATION_COOLDOWN_MINUTES,
     CONF_NOTIFY_SERVICE,
     CONF_ORP_ALERT_THRESHOLD,
-    CONF_PH_MAX_THRESHOLD,
-    CONF_PH_MIN_THRESHOLD,
-    CONF_PH_SENSOR_OBJECT_ID,
+    CONF_PUMP_POWER_SWITCH_OBJECT_ID,
+    CONF_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID,
+    CONF_PUMP_SPEED_LOW_SWITCH_OBJECT_ID,
+    CONF_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID,
     CONF_PH_MAX_THRESHOLD,
     CONF_PH_MIN_THRESHOLD,
     CONF_PH_SENSOR_OBJECT_ID,
@@ -57,6 +58,12 @@ from .const import (
     CONF_PRESSURE_HOST,
     CONF_PRESSURE_NOISE_PSK,
     CONF_PRESSURE_PORT,
+    CONF_PUMP_HOST,
+    CONF_PUMP_NOISE_PSK,
+    CONF_PUMP_PORT,
+    CONF_HEAT_PUMP_HOST,
+    CONF_HEAT_PUMP_NOISE_PSK,
+    CONF_HEAT_PUMP_PORT,
     CONF_SCAN_INTERVAL,
     CONF_DEFAULT_TARGET_ORP,
     CONF_DEFAULT_TARGET_WATER_LEVEL_PERCENT,
@@ -67,6 +74,7 @@ from .const import (
     DEFAULT_ENABLE_CONTROLS,
     DEFAULT_ENABLE_LEVEL_AUTOMATION,
     DEFAULT_ENABLE_ORP_AUTOMATION,
+    DEFAULT_PORT,
     DEFAULT_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
     DEFAULT_FILL_START_BUTTON_OBJECT_ID,
     DEFAULT_FILL_STOP_BUTTON_OBJECT_ID,
@@ -78,6 +86,10 @@ from .const import (
     DEFAULT_NOTIFICATION_COOLDOWN_MINUTES,
     DEFAULT_NOTIFY_SERVICE,
     DEFAULT_ORP_ALERT_THRESHOLD,
+    DEFAULT_PUMP_POWER_SWITCH_OBJECT_ID,
+    DEFAULT_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID,
+    DEFAULT_PUMP_SPEED_LOW_SWITCH_OBJECT_ID,
+    DEFAULT_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID,
     DEFAULT_POOL_VOLUME_LITERS,
     DEFAULT_CHLORINE_STRENGTH_PERCENT,
     DEFAULT_MAX_PPM_INCREASE_PER_DOSE,
@@ -95,7 +107,9 @@ from .const import (
     DEFAULT_TIMEOUT,
     DOMAIN,
     ROLE_CHEMISTRY,
+    ROLE_HEAT_PUMP,
     ROLE_LEVEL,
+    ROLE_PUMP,
     ROLE_PRESSURE,
 )
 from .coordinator import AtlasScientificPoolCoordinator
@@ -106,6 +120,8 @@ _PLATFORMS: list[Platform] = [
     Platform.NUMBER,
     Platform.BUTTON,
     Platform.BINARY_SENSOR,
+    Platform.SWITCH,
+    Platform.SELECT,
 ]
 
 
@@ -132,6 +148,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             host=options[CONF_LEVEL_HOST],
             port=options[CONF_LEVEL_PORT],
             noise_psk=options.get(CONF_LEVEL_NOISE_PSK),
+        ),
+        pump=NodeConfig(
+            role=ROLE_PUMP,
+            host=str(options.get(CONF_PUMP_HOST, "")),
+            port=int(options.get(CONF_PUMP_PORT, DEFAULT_PORT)),
+            noise_psk=options.get(CONF_PUMP_NOISE_PSK),
+        ),
+        heat_pump=NodeConfig(
+            role=ROLE_HEAT_PUMP,
+            host=str(options.get(CONF_HEAT_PUMP_HOST, "")),
+            port=int(options.get(CONF_HEAT_PUMP_PORT, DEFAULT_PORT)),
+            noise_psk=options.get(CONF_HEAT_PUMP_NOISE_PSK),
         ),
         timeout=float(options.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)),
         update_interval=timedelta(
@@ -265,6 +293,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             fill_running_binary_sensor_object_id=options.get(
                 CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
                 DEFAULT_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
+            ),
+            pump_power_switch_object_id=options.get(
+                CONF_PUMP_POWER_SWITCH_OBJECT_ID,
+                DEFAULT_PUMP_POWER_SWITCH_OBJECT_ID,
+            ),
+            pump_speed_low_switch_object_id=options.get(
+                CONF_PUMP_SPEED_LOW_SWITCH_OBJECT_ID,
+                DEFAULT_PUMP_SPEED_LOW_SWITCH_OBJECT_ID,
+            ),
+            pump_speed_medium_switch_object_id=options.get(
+                CONF_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID,
+                DEFAULT_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID,
+            ),
+            pump_speed_high_switch_object_id=options.get(
+                CONF_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID,
+                DEFAULT_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID,
             ),
         ),
     )

@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from homeassistant.core import HomeAssistant
 
-from custom_components.atlas_scientific_pool.const import ROLE_CHEMISTRY, ROLE_LEVEL, ROLE_PRESSURE
+from custom_components.atlas_scientific_pool.const import ROLE_CHEMISTRY, ROLE_LEVEL, ROLE_PRESSURE, ROLE_PUMP
 from custom_components.atlas_scientific_pool.coordinator import AtlasScientificPoolCoordinator, DoseSafetyError
 from custom_components.atlas_scientific_pool.models import NodeCommandMap, NodeConfig, SafetyConfig
 
@@ -37,6 +37,8 @@ def coordinator(hass: HomeAssistant) -> AtlasScientificPoolCoordinator:
         chemistry=NodeConfig(ROLE_CHEMISTRY, "chem.local", 6053, "a"),
         pressure=NodeConfig(ROLE_PRESSURE, "pressure.local", 6053, "b"),
         level=NodeConfig(ROLE_LEVEL, "level.local", 6053, "c"),
+        pump=None,
+        heat_pump=None,
         timeout=10,
         update_interval=timedelta(seconds=30),
         safety=SafetyConfig(
@@ -80,6 +82,10 @@ def coordinator(hass: HomeAssistant) -> AtlasScientificPoolCoordinator:
             fill_start_button_object_id="fill_start",
             fill_stop_button_object_id="fill_stop",
             fill_running_binary_sensor_object_id="fill_running",
+            pump_power_switch_object_id="relay4",
+            pump_speed_low_switch_object_id="relay3",
+            pump_speed_medium_switch_object_id="relay2",
+            pump_speed_high_switch_object_id="relay1",
         ),
     )
     coord._clients = {
@@ -184,6 +190,38 @@ async def test_pool_size_cap_blocks_large_acid_dose(
 
     with pytest.raises(DoseSafetyError):
         await coordinator.async_dose_acid(200)
+
+
+async def test_safeguard_blocks_chlorine_when_pool_pump_not_running(
+    coordinator: AtlasScientificPoolCoordinator,
+) -> None:
+    """Chlorine dosing must be blocked when pool pump is configured but off."""
+    coordinator._clients[ROLE_PUMP] = FakeClient()
+    coordinator.data["nodes"][ROLE_PUMP] = {
+        "available": True,
+        "states": {
+            "relay4": False,
+        },
+    }
+
+    with pytest.raises(DoseSafetyError):
+        await coordinator.async_dose_chlorine(30)
+
+
+async def test_safeguard_blocks_acid_when_pool_pump_not_running(
+    coordinator: AtlasScientificPoolCoordinator,
+) -> None:
+    """Acid dosing must be blocked when pool pump is configured but off."""
+    coordinator._clients[ROLE_PUMP] = FakeClient()
+    coordinator.data["nodes"][ROLE_PUMP] = {
+        "available": True,
+        "states": {
+            "relay4": False,
+        },
+    }
+
+    with pytest.raises(DoseSafetyError):
+        await coordinator.async_dose_acid(30)
 
 
 async def test_water_level_automation_starts_fill_when_low(
