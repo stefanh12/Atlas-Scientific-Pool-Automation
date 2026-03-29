@@ -15,7 +15,6 @@ from .const import (
     ALERT_PH_HIGH,
     ALERT_PH_LOW,
     ROLE_CHEMISTRY,
-    ROLE_HEAT_PUMP,
     ROLE_LEVEL,
     ROLE_PUMP,
 )
@@ -32,7 +31,7 @@ class DoseSafetyError(HomeAssistantError):
 def _as_bool(value: Any) -> bool:
     if isinstance(value, bool):
         return value
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         return bool(value)
     if isinstance(value, str):
         return value.strip().lower() in {"true", "on", "1"}

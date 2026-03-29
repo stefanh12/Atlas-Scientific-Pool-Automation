@@ -33,7 +33,7 @@ class DynamicSwitchDescription:
 def _as_bool(value: Any) -> bool:
     if isinstance(value, bool):
         return value
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         return bool(value)
     if isinstance(value, str):
         return value.strip().lower() in {"true", "on", "1"}

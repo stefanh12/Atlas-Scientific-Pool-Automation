@@ -7,7 +7,9 @@ from types import SimpleNamespace
 from homeassistant.core import HomeAssistant
 
 from custom_components.atlas_scientific_pool.const import DOMAIN
-from custom_components.atlas_scientific_pool.diagnostics import async_get_config_entry_diagnostics
+from custom_components.atlas_scientific_pool.diagnostics import (
+    async_get_config_entry_diagnostics,
+)
 
 
 async def test_diagnostics_redacts_keys(hass: HomeAssistant) -> None:
