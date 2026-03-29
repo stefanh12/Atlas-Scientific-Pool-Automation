@@ -1,0 +1,341 @@
+# inspiration from https://github.com/DerekSeaman/ESPHome-Seeed-Xiao-ESP32-C6-Config/blob/main/examples/common/Seeed%20xiao%20ESP32-c6%20base.yaml
+
+esphome:
+  name: pool-water-level
+  friendly_name: pool water level
+  on_boot:
+    then:
+     - switch.turn_on: sensor_power  
+     - switch.turn_on: probe1_power
+     - switch.turn_on: probe2_power  
+esp32:
+    variant: esp32c6
+    board: seeed_xiao_esp32c6
+
+substitutions:
+  esp_id: pool_water_level
+  esp_name: "pool water level"
+  pin_led_board: GPIO2  # Pin for the status light
+
+# Enable logging
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "Ust8Vap3C9kKUrtxGDLNoLTn9IrFHnjNGxOryIV9mxQ="
+
+ota:
+  - platform: esphome
+    password: "db199c93f383d899b0468fb947d40118"
+
+wifi:
+  ssid: !secret wifi__iot2_ssid
+  password: !secret wifi_iot2_password
+#  power_save_mode: HIGH
+  enable_btm: true
+  enable_rrm: true
+  on_disconnect:
+      then:
+          - lambda: |-
+              id(_wifi_disconnects_since_boot)++;
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Pool-Water-Level"
+    password: ""
+
+captive_portal:
+
+output:
+    - platform: gpio
+      id: ant_gpio3
+      pin: GPIO3
+
+    - platform: gpio
+      id: ant_gpio14
+      pin: GPIO14
+
+
+i2c:
+  sda: GPIO22
+  scl: GPIO23
+  scan: false
+  frequency: 100kHz
+  timeout: 1s
+# ADS1115 configuration
+ads1115:
+  - address: 0x48
+
+# GPIO to power the sensor circuit
+switch:
+  - platform: gpio
+    pin: GPIO17
+    id: sensor_power
+  - platform: homeassistant
+    id: prevent_deep_sleep
+    name: Prevent Deep Sleep
+    entity_id: input_boolean.${esp_id}_ota_update_available
+    on_turn_on:
+      then:
+#        - deep_sleep.prevent: deep_sleep_control
+    on_turn_off:
+      then:
+#        - deep_sleep.allow: deep_sleep_control
+# Read voltage from voltage divider (sensor + 470Ω resistor)
+
+  # External antenna selector (FM8625H RF switch control)
+  - platform: template
+    name: "External Antenna"
+    optimistic: true
+    restore_mode: ALWAYS_ON
+    turn_on_action:
+        - output.turn_off: ant_gpio3     # LOW -> RF switch power ON
+        - output.turn_on:  ant_gpio14    # HIGH -> external antenna (U.FL/RF2)
+    turn_off_action:
+        - output.turn_off: ant_gpio3     # LOW -> RF switch power ON
+        - output.turn_off: ant_gpio14    # LOW -> internal antenna (PCB/RF1)
+
+
+  # NEW: split power to each probe pull-up
+  - platform: gpio
+    id: probe1_power
+    pin: GPIO18
+
+  - platform: gpio
+    id: probe2_power
+    pin: GPIO19
+
+sensor:
+  - platform: ads1115
+    multiplexer: 'A0_GND'
+    gain: 0.256
+    name: "A0"
+    id: pool_level_voltage
+    update_interval: 15s
+    internal: false
+
+    # (Optional) Add a slight moving average if you see noise:
+    # filters:
+    #   - sliding_window_moving_average:
+    #       window_size: 3
+    #       send_every: 1
+  - platform: ads1115
+    multiplexer: 'A1_GND'
+    gain: 0.256
+    name: "A1"
+    id: pool2_level_voltage
+    update_interval: 15s
+    internal: false
+
+    # (Optional) Add a slight moving average if you see noise:
+    # filters:
+    #   - sliding_window_moving_average:
+    #       window_size: 3
+    #       send_every: 1
+
+ # Water level percentage (calibrated)
+  - platform: ads1115
+    multiplexer: 'A0_GND'
+    gain: 0.256
+    id: pool_level_percentage
+    icon: MDI:Water
+    name: "Pool Level"
+    update_interval: 60s
+    unit_of_measurement: "%"
+    accuracy_decimals: 0  
+    filters:  
+      lambda: |-
+        const float min_v = 0.00f;   // volts when dry
+        const float max_v = 0.65f;   // <-- adjust after taking a "full" reading
+        float v = id(pool_level_voltage).state;
+        if (v <= min_v) return 0.0f;
+        if (v >= max_v) return 100.0f;
+        return (v - min_v) * 100.0f / (max_v - min_v);
+
+
+
+  # Battery voltage reading via A0
+  # ESP32-C6 ADC: 12-bit (0–4095), range ~0–3.3V
+  # Resolution: ~0.805 mV per step
+  # With 1:2 divider (200kΩ + 200kΩ): ~1.61 mV per step
+  - platform: adc
+    pin: GPIO0
+    name: "Battery Voltage"
+    id: battery_voltage
+    update_interval: 10s
+    internal: true
+    attenuation: 12dB
+    filters:
+      - multiply: 2.0   # Correct for the 1:2 divider (200kΩ + 200kΩ)
+      - offset: 0.09
+
+
+  # Battery percentage based on Li-ion discharge curve
+  # Non-linear mapping for 18650 cells
+  - platform: template
+    name: "Battery "
+    id: battery_percentage
+    icon: MDI:Battery
+    unit_of_measurement: "%"
+    accuracy_decimals: 0    
+    lambda: |-
+
+      float voltage = id(battery_voltage).state;
+      if (voltage < 3.0) voltage = 3.0;
+      if (voltage > 4.2) voltage = 4.2;
+
+      if (voltage >= 4.20) return 100.0;
+      else if (voltage >= 4.19) return 99.0;
+      else if (voltage >= 4.18) return 98.0;
+      else if (voltage >= 4.17) return 97.0;
+      else if (voltage >= 4.16) return 96.0;
+      else if (voltage >= 4.15) return 95.0;
+      else if (voltage >= 4.14) return 94.0;
+      else if (voltage >= 4.13) return 93.0;
+      else if (voltage >= 4.12) return 92.0;
+      else if (voltage >= 4.11) return 91.0;
+      else if (voltage >= 4.10) return 90.0;
+      else if (voltage >= 4.09) return 89.0;
+      else if (voltage >= 4.08) return 88.0;
+      else if (voltage >= 4.07) return 87.0;
+      else if (voltage >= 4.06) return 86.0;
+      else if (voltage >= 4.05) return 85.0;
+      else if (voltage >= 4.04) return 84.0;
+      else if (voltage >= 4.03) return 83.0;
+      else if (voltage >= 4.02) return 82.0;
+      else if (voltage >= 4.01) return 81.0;
+      else if (voltage >= 4.00) return 80.0;
+      else if (voltage >= 3.99) return 79.0;
+      else if (voltage >= 3.98) return 78.0;
+      else if (voltage >= 3.97) return 77.0;
+      else if (voltage >= 3.96) return 76.0;
+      else if (voltage >= 3.95) return 75.0;
+      else if (voltage >= 3.94) return 74.0;
+      else if (voltage >= 3.93) return 73.0;
+      else if (voltage >= 3.92) return 72.0;
+      else if (voltage >= 3.91) return 71.0;
+      else if (voltage >= 3.90) return 70.0;
+      else if (voltage >= 3.89) return 69.0;
+      else if (voltage >= 3.88) return 68.0;
+      else if (voltage >= 3.87) return 67.0;
+      else if (voltage >= 3.86) return 66.0;
+      else if (voltage >= 3.85) return 65.0;
+      else if (voltage >= 3.84) return 64.0;
+      else if (voltage >= 3.83) return 63.0;
+      else if (voltage >= 3.82) return 62.0;
+      else if (voltage >= 3.81) return 61.0;
+      else if (voltage >= 3.80) return 60.0;
+      else if (voltage >= 3.79) return 59.0;
+      else if (voltage >= 3.78) return 58.0;
+      else if (voltage >= 3.77) return 57.0;
+      else if (voltage >= 3.76) return 56.0;
+      else if (voltage >= 3.75) return 55.0;
+      else if (voltage >= 3.74) return 54.0;
+      else if (voltage >= 3.73) return 53.0;
+      else if (voltage >= 3.72) return 52.0;
+      else if (voltage >= 3.71) return 51.0;
+      else if (voltage >= 3.70) return 50.0;
+      else if (voltage >= 3.69) return 49.0;
+      else if (voltage >= 3.68) return 48.0;
+      else if (voltage >= 3.67) return 47.0;
+      else if (voltage >= 3.66) return 46.0;
+      else if (voltage >= 3.65) return 45.0;
+      else if (voltage >= 3.64) return 44.0;
+      else if (voltage >= 3.63) return 43.0;
+      else if (voltage >= 3.62) return 42.0;
+      else if (voltage >= 3.61) return 41.0;
+      else if (voltage >= 3.60) return 40.0;
+      else if (voltage >= 3.59) return 39.0;
+      else if (voltage >= 3.58) return 38.0;
+      else if (voltage >= 3.57) return 37.0;
+      else if (voltage >= 3.56) return 36.0;
+      else if (voltage >= 3.55) return 35.0;
+      else if (voltage >= 3.54) return 34.0;
+      else if (voltage >= 3.53) return 33.0;
+      else if (voltage >= 3.52) return 32.0;
+      else if (voltage >= 3.51) return 31.0;
+      else if (voltage >= 3.50) return 30.0;
+      else if (voltage >= 3.49) return 29.0;
+      else if (voltage >= 3.48) return 28.0;
+      else if (voltage >= 3.47) return 27.0;
+      else if (voltage >= 3.46) return 26.0;
+      else if (voltage >= 3.45) return 25.0;
+      else if (voltage >= 3.44) return 24.0;
+      else if (voltage >= 3.43) return 23.0;
+      else if (voltage >= 3.42) return 22.0;
+      else if (voltage >= 3.41) return 21.0;
+      else if (voltage >= 3.40) return 20.0;
+      else if (voltage >= 3.39) return 19.0;
+      else if (voltage >= 3.38) return 18.0;
+      else if (voltage >= 3.37) return 17.0;
+      else if (voltage >= 3.36) return 16.0;
+      else if (voltage >= 3.35) return 15.0;
+      else if (voltage >= 3.34) return 14.0;
+      else if (voltage >= 3.33) return 13.0;
+      else if (voltage >= 3.32) return 12.0;
+      else if (voltage >= 3.31) return 11.0;
+      else if (voltage >= 3.30) return 10.0;
+      else if (voltage >= 3.29) return 9.0;
+      else if (voltage >= 3.28) return 8.0;
+      else if (voltage >= 3.27) return 7.0;
+      else if (voltage >= 3.26) return 6.0;
+      else if (voltage >= 3.25) return 5.0;
+      else return 4.0;
+
+#      return (-127.0 * pow(voltage, 4) + 2150.0 * pow(voltage, 3) - 12700.0 * pow(voltage, 2) + 35000.0 * voltage - 34000.0);
+
+    update_interval: 60s
+  - platform: template
+    name: "Wi-Fi Disconnects (since boot)"
+    id: wifi_disconnects_since_boot_sensor
+    entity_category: diagnostic
+    accuracy_decimals: 0
+    update_interval: never
+    lambda: |-
+        return id(_wifi_disconnects_since_boot); 
+
+
+
+  - platform: internal_temperature
+    name: "Internal Temp"
+    entity_category: diagnostic
+
+# Interval to take readings and enter deep sleep
+interval:
+  - interval: 10min
+    then:
+      - switch.turn_on: sensor_power
+      - delay: 200ms
+      - component.update: pool_level_voltage
+      - component.update: pool_level_percentage
+      - component.update: battery_voltage
+      - component.update: battery_percentage  
+      - delay: 200ms
+#      - switch.turn_off: sensor_power
+#      - deep_sleep.enter: deep_sleep_control
+#      - component.update: battery_voltage
+#      - component.update: battery_percentage
+#      - component.update: wifi_disconnects_since_boot_sensor
+
+# Deep sleep configuration
+#deep_sleep:
+#  id: deep_sleep_control
+#  run_duration: 10s
+#  sleep_duration: 10min
+
+globals:
+    - id: _wifi_disconnects_since_boot
+      type: int
+      restore_value: no
+      initial_value: '0'
+light:
+  - platform: esp32_rmt_led_strip
+    rgb_order: GRB
+    pin: GPIO8
+    num_leds: 1
+    chipset: ws2812
+    name: "RGB LED"
+    id: status_led
+    default_transition_length: 0.5s
