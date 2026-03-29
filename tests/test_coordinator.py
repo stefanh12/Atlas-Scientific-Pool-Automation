@@ -17,7 +17,11 @@ from custom_components.atlas_scientific_pool.coordinator import (
     AtlasScientificPoolCoordinator,
     DoseSafetyError,
 )
-from custom_components.atlas_scientific_pool.models import NodeCommandMap, NodeConfig, SafetyConfig
+from custom_components.atlas_scientific_pool.models import (
+    NodeCommandMap,
+    NodeConfig,
+    SafetyConfig,
+)
 
 
 class FakeClient:
