@@ -217,6 +217,130 @@ class AtlasScientificAcidSafeDoseCapSensor(
         )
 
 
+class AtlasScientificChlorineNeed24hSensor(
+    CoordinatorEntity[AtlasScientificPoolCoordinator], SensorEntity
+):
+    """Heuristic estimate of chlorine dosage needed over next 24 hours in ml."""
+
+    _attr_has_entity_name = True
+    _attr_native_unit_of_measurement = "ml"
+
+    def __init__(
+        self,
+        coordinator: AtlasScientificPoolCoordinator,
+        entry: ConfigEntry,
+    ) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{entry.entry_id}_chlorine_need_24h"
+        self._attr_name = "chlorine need 24h"
+
+    @property
+    def native_value(self) -> float | None:
+        if not self.coordinator.data:
+            return None
+
+        chemistry = self.coordinator.data.get("nodes", {}).get("chemistry", {})
+        current_raw = chemistry.get("states", {}).get(
+            self.coordinator.safety.orp_sensor_object_id
+        )
+        try:
+            current_orp = float(current_raw)
+        except (TypeError, ValueError):
+            return None
+
+        deficit_mv = self.coordinator.target_orp_mv - current_orp
+        if deficit_mv <= 0:
+            return 0.0
+
+        per_dose_ml = min(
+            self.coordinator.chlorine_pool_size_cap_ml(),
+            self.coordinator.safety.max_dose_ml,
+        )
+        if per_dose_ml <= 0:
+            return 0.0
+
+        hysteresis_mv = max(self.coordinator.safety.orp_hysteresis_mv, 1.0)
+        estimated_doses = deficit_mv / hysteresis_mv
+        daily_estimate_ml = min(estimated_doses * per_dose_ml, per_dose_ml * 24)
+        return round(daily_estimate_ml, 1)
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.node_available("chemistry")
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        node = self.coordinator.data.get("nodes", {}).get("chemistry", {})
+        return DeviceInfo(
+            identifiers={(DOMAIN, "node_chemistry")},
+            name=node.get("device_name", "chemistry"),
+            model=node.get("model"),
+            manufacturer="ESPHome",
+        )
+
+
+class AtlasScientificAcidNeed24hSensor(
+    CoordinatorEntity[AtlasScientificPoolCoordinator], SensorEntity
+):
+    """Heuristic estimate of acid dosage needed over next 24 hours in ml."""
+
+    _attr_has_entity_name = True
+    _attr_native_unit_of_measurement = "ml"
+
+    def __init__(
+        self,
+        coordinator: AtlasScientificPoolCoordinator,
+        entry: ConfigEntry,
+    ) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{entry.entry_id}_acid_need_24h"
+        self._attr_name = "acid need 24h"
+
+    @property
+    def native_value(self) -> float | None:
+        if not self.coordinator.data:
+            return None
+
+        chemistry = self.coordinator.data.get("nodes", {}).get("chemistry", {})
+        current_raw = chemistry.get("states", {}).get(
+            self.coordinator.safety.ph_sensor_object_id
+        )
+        try:
+            current_ph = float(current_raw)
+        except (TypeError, ValueError):
+            return None
+
+        excess_ph = current_ph - self.coordinator.safety.ph_max_threshold
+        if excess_ph <= 0:
+            return 0.0
+
+        per_dose_ml = min(
+            self.coordinator.acid_pool_size_cap_ml(),
+            self.coordinator.safety.max_dose_ml,
+        )
+        if per_dose_ml <= 0:
+            return 0.0
+
+        ph_drop_per_dose = max(self.coordinator.safety.max_ph_drop_per_dose, 0.01)
+        estimated_doses = excess_ph / ph_drop_per_dose
+        daily_estimate_ml = min(estimated_doses * per_dose_ml, per_dose_ml * 24)
+        return round(daily_estimate_ml, 1)
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.node_available("chemistry")
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        node = self.coordinator.data.get("nodes", {}).get("chemistry", {})
+        return DeviceInfo(
+            identifiers={(DOMAIN, "node_chemistry")},
+            name=node.get("device_name", "chemistry"),
+            model=node.get("model"),
+            manufacturer="ESPHome",
+        )
+
+
 class AtlasScientificWaterLevelAutomationStatusSensor(
     CoordinatorEntity[AtlasScientificPoolCoordinator], SensorEntity
 ):
@@ -327,6 +451,8 @@ async def async_setup_entry(
     entities.append(AtlasScientificOrpErrorSensor(coordinator, entry))
     entities.append(AtlasScientificChlorineSafeDoseCapSensor(coordinator, entry))
     entities.append(AtlasScientificAcidSafeDoseCapSensor(coordinator, entry))
+    entities.append(AtlasScientificChlorineNeed24hSensor(coordinator, entry))
+    entities.append(AtlasScientificAcidNeed24hSensor(coordinator, entry))
     entities.append(AtlasScientificWaterLevelAutomationStatusSensor(coordinator, entry))
     entities.append(AtlasScientificWaterLevelErrorSensor(coordinator, entry))
 
