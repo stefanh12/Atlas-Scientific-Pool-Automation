@@ -1,0 +1,86 @@
+substitutions:
+  devicename: pool-filter-tryck
+  ssid: !secret wifi__iot2_ssid
+  ssidpassword: !secret wifi_iot2_password
+  otapassword: api_password
+  friendly_name: pool-filter-tryck
+esphome:
+  name: pool-filter-tryck
+
+esp8266:
+  board: d1_mini
+
+  
+wifi:
+  ssid: ${ssid}
+  password: ${ssidpassword}
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: ${devicename}
+    password: !secret wifi_ap_password
+
+captive_portal:
+
+api:
+  encryption:
+    key: !secret api_key
+ 
+ota:
+  - platform: esphome
+    password: !secret ota_password
+logger: 
+    
+i2c:
+  sda: D2
+  scl: D1
+  scan: false
+  frequency: 100kHz
+  timeout: 1s
+
+ads1115:
+  address: 0x48
+#  continuous_mode: on
+#  update_interval: 5s
+  id: ads1115_48
+
+# https://community.home-assistant.io/t/useing-a-pressure-sensor-in-combination-with-esp-d1-mini-ads1115-level-converter/428424/2
+# Trycksensor i rostfritt stål, trycksensor G1/4" 5V Utgång 0,5-4,5V/0-5V Tryckgivare Sensoringång för olja Bränsle Gas Luft Vatten(0-30PSI)
+# https://www.amazon.se/dp/B07YKZYR2R?th=1
+sensor:
+  - platform: ads1115
+    multiplexer: 'A0_GND'
+    gain: 6.144
+    name: "Pool Filter Pressure"
+    update_interval: 5s
+    accuracy_decimals: 1
+    unit_of_measurement: "PSI"
+    
+    filters:
+      - calibrate_linear:
+        - 0.52 -> 0.0
+        - 4.5 -> 30.0    
+      - lambda: |-
+          if (x <= 0.1) {
+            return 0.0;
+          } else {
+            return x;
+          } 
+    
+  - platform: uptime
+    name: Relay Uptime
+
+  - platform: wifi_signal
+    name: Relay WiFi Signal
+    update_interval: 60s
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "${devicename} - IP Address"
+    ssid:
+      name: "${devicename} - Wi-Fi SSID"
+    bssid:
+      name: "${devicename} - Wi-Fi BSSID"
+  - platform: version
+    name: "${devicename} - ESPHome Version"
+    hide_timestamp: true   
