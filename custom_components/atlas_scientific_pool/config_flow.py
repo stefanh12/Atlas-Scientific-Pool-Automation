@@ -515,7 +515,9 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
         }
     )
 
-class AtlasScientificPoolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
+    config_entries.ConfigFlow, domain=DOMAIN
+):
     """Handle a config flow for Atlas Scientific Pool."""
 
     VERSION = 1

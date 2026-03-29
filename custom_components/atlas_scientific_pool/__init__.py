@@ -156,6 +156,21 @@ def _esphome_entries_index(hass: HomeAssistant) -> dict[str, ConfigEntry]:
     return index
 
 
+def _port_from_value(value: object, default: int = DEFAULT_PORT) -> int:
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return default
+    return default
+
+
 def _legacy_node_config(
     role: str,
     options: dict[str, object],
@@ -167,7 +182,7 @@ def _legacy_node_config(
     return NodeConfig(
         role=role,
         host=str(options.get(host_key, "")).strip(),
-        port=int(options.get(port_key, DEFAULT_PORT)),
+        port=_port_from_value(options.get(port_key, DEFAULT_PORT)),
         noise_psk=str(options.get(psk_key, "")).strip() or None,
     )
 
@@ -200,7 +215,7 @@ def _node_config_from_esphome(
     return NodeConfig(
         role=role,
         host=host,
-        port=int(matched_entry.data.get("port", DEFAULT_PORT)),
+        port=_port_from_value(matched_entry.data.get("port", DEFAULT_PORT)),
         noise_psk=str(matched_entry.data.get("noise_psk", "")).strip() or None,
     )
 

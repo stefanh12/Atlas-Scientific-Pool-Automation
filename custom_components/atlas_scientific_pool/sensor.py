@@ -311,7 +311,7 @@ async def async_setup_entry(
     """Set up sensor entities from config entry."""
     coordinator: AtlasScientificPoolCoordinator = hass.data[DOMAIN][entry.entry_id]
 
-    entities: list[AtlasScientificPoolSensor] = []
+    entities: list[SensorEntity] = []
     for role in NODE_ROLES:
         node = coordinator.data.get("nodes", {}).get(role, {}) if coordinator.data else {}
         for object_id in node.get("sensor_object_ids", []):

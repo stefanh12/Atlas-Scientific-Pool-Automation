@@ -175,6 +175,14 @@ class AtlasScientificDynamicNodeNumber(
     @property
     def native_value(self) -> float | None:
         value = self.coordinator.state_value(self._description.role, self._description.object_id)
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return float(value)
+        if isinstance(value, int | float):
+            return float(value)
+        if not isinstance(value, str):
+            return None
         try:
             return float(value)
         except (TypeError, ValueError):
