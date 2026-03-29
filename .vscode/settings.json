@@ -4,6 +4,27 @@
         "true": true,
         "./.venv/bin/pip": true,
         "command": true,
-        "mypy": true
+        "mypy": true,
+        "/^echo ready && python3 --version && python3 -m pip --version$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "pytest": true,
+        "set": true,
+        "./.venv-ci/bin/pip": true,
+        "./.venv-ci/bin/pytest": true,
+        "/^set -e\nsudo apt-get update -y\nsudo apt-get install -y python3-venv\npython3 -m venv \\.venv-ci\n\\./\\.venv-ci/bin/pip install --upgrade pip setuptools wheel\n\\./\\.venv-ci/bin/pip install -r requirements_test\\.txt\n\\./\\.venv-ci/bin/pytest -q$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "./.venv-ci/bin/python": true,
+        "/^python3 -m pip show pytest pytest-homeassistant-custom-component \\| sed -n '1,120p'; echo '---'; python3 -m pytest -q -k test_config_flow --maxfail=1$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^python3 -m pip install --break-system-packages -r requirements_test\\.txt$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     }
 }

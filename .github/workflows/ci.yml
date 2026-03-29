@@ -28,4 +28,6 @@ jobs:
       - name: Type check
         run: mypy
       - name: Test
+        env:
+          PYTHONPATH: .
         run: pytest
