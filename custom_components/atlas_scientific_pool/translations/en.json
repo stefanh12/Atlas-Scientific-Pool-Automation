@@ -1,0 +1,113 @@
+{
+  "config": {
+    "flow_title": "Atlas Scientific Pool",
+    "step": {
+      "user": {
+        "title": "Configure pool nodes",
+        "description": "Discovered hosts: {discovered}",
+        "data": {
+          "chemistry_host": "Chemistry node host",
+          "chemistry_port": "Chemistry node port",
+          "chemistry_noise_psk": "Chemistry node encryption key",
+          "pressure_host": "Filter pressure node host",
+          "pressure_port": "Filter pressure node port",
+          "pressure_noise_psk": "Filter pressure node encryption key",
+          "level_host": "Water level node host",
+          "level_port": "Water level node port",
+          "level_noise_psk": "Water level node encryption key"
+        },
+        "data_description": {
+          "chemistry_noise_psk": "Leave empty if the ESPHome node does not use API encryption",
+          "pressure_noise_psk": "Leave empty if the ESPHome node does not use API encryption",
+          "level_noise_psk": "Leave empty if the ESPHome node does not use API encryption"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to one or more ESPHome nodes",
+      "hosts_must_be_unique": "Each node host must be unique"
+    },
+    "abort": {
+      "already_configured": "This pool integration is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Pool options",
+        "data": {
+          "scan_interval": "Polling interval (seconds)",
+          "timeout": "Connection timeout (seconds)",
+          "enable_controls": "Enable pump controls",
+          "max_dose_ml": "Maximum dose per action (ml)",
+          "cooldown_seconds": "Cooldown between doses (seconds)",
+          "default_chlorine_dose_ml": "Default chlorine dose (ml)",
+          "default_acid_dose_ml": "Default acid dose (ml)",
+          "enable_orp_automation": "Enable ORP-based chlorine automation",
+          "default_target_orp": "Default target ORP (mV)",
+          "orp_hysteresis_mv": "ORP hysteresis (mV)",
+          "orp_sensor_object_id": "ESPHome ORP sensor object_id",
+          "enable_level_automation": "Enable water-level fill automation",
+          "default_target_water_level_percent": "Default target water level (%)",
+          "level_hysteresis_percent": "Water-level hysteresis (%)",
+          "level_sensor_object_id": "ESPHome water-level sensor object_id",
+          "fill_start_button_object_id": "ESPHome fill start button object_id",
+          "fill_stop_button_object_id": "ESPHome fill stop button object_id",
+          "fill_running_binary_sensor_object_id": "ESPHome fill running binary sensor object_id",
+          "max_fill_runtime_minutes": "Max fill runtime before auto-stop (minutes)",
+          "pool_volume_liters": "Pool volume (liters)",
+          "chlorine_strength_percent": "Chlorine strength (%)",
+          "max_ppm_increase_per_dose": "Max free chlorine increase per dose (ppm)",
+          "acid_strength_percent": "Acid strength (%)",
+          "max_ph_drop_per_dose": "Max pH drop per dose",
+          "total_alkalinity_ppm": "Total alkalinity (ppm)",
+          "enable_notifications": "Enable alert notifications",
+          "notify_service": "Notify service",
+          "ph_sensor_object_id": "ESPHome pH sensor object_id",
+          "ph_min_threshold": "pH low alert threshold",
+          "ph_max_threshold": "pH high alert threshold",
+          "orp_alert_threshold": "ORP low alert threshold (mV)",
+          "notification_cooldown_minutes": "Minimum minutes between repeat alerts",
+          "chlorine_volume_number": "ESPHome chlorine volume number object_id",
+          "acid_volume_number": "ESPHome acid volume number object_id",
+          "chlorine_dose_button": "ESPHome chlorine dose button object_id",
+          "acid_dose_button": "ESPHome acid dose button object_id",
+          "chlorine_stop_button": "ESPHome chlorine stop button object_id",
+          "acid_stop_button": "ESPHome acid stop button object_id",
+          "chlorine_running_binary_sensor": "ESPHome chlorine running binary sensor object_id",
+          "acid_running_binary_sensor": "ESPHome acid running binary sensor object_id"
+        },
+        "data_description": {
+          "scan_interval": "How often all three ESPHome nodes are polled for new values",
+          "timeout": "Per-node connection timeout in seconds",
+          "max_dose_ml": "Hard upper limit regardless of chemistry caps",
+          "cooldown_seconds": "Minimum time that must pass before the same chemical can be dosed again",
+          "orp_hysteresis_mv": "Dose is triggered when ORP drops below target minus this value",
+          "orp_sensor_object_id": "Must match the object_id of the ORP sensor in your ESPHome YAML",
+          "level_hysteresis_percent": "Fill starts when level is below target minus this value",
+          "level_sensor_object_id": "Must match the object_id of the water-level sensor in your ESPHome YAML",
+          "fill_start_button_object_id": "Must match the object_id of the fill-start button in your ESPHome YAML",
+          "fill_stop_button_object_id": "Must match the object_id of the fill-stop button in your ESPHome YAML",
+          "fill_running_binary_sensor_object_id": "Optional. Must match the object_id of a binary sensor that confirms the fill valve state",
+          "max_fill_runtime_minutes": "Safety timeout: fill valve is force-closed when exceeded",
+          "chlorine_strength_percent": "Available chlorine concentration of your product, used to compute the pool-size dose cap",
+          "max_ppm_increase_per_dose": "Maximum allowed rise in free chlorine from a single dose",
+          "acid_strength_percent": "Concentration of your acid product, used to compute the pool-size dose cap",
+          "max_ph_drop_per_dose": "Maximum allowed pH decrease from a single dose",
+          "total_alkalinity_ppm": "Influences how much acid is needed to change pH",
+          "notify_service": "Full HA service name, e.g. notify.mobile_app_myphone. Leave empty to use only the persistent notification panel",
+          "ph_sensor_object_id": "Must match the object_id of the pH sensor in your ESPHome YAML",
+          "notification_cooldown_minutes": "Prevents repeated notifications for the same active condition",
+          "chlorine_volume_number": "Must match the object_id of the chlorine volume number in your ESPHome YAML",
+          "acid_volume_number": "Must match the object_id of the acid volume number in your ESPHome YAML",
+          "chlorine_dose_button": "Must match the object_id of the chlorine dose button in your ESPHome YAML",
+          "acid_dose_button": "Must match the object_id of the acid dose button in your ESPHome YAML",
+          "chlorine_stop_button": "Must match the object_id of the chlorine stop button in your ESPHome YAML",
+          "acid_stop_button": "Must match the object_id of the acid stop button in your ESPHome YAML",
+          "chlorine_running_binary_sensor": "Must match the object_id of the chlorine pump running binary sensor in your ESPHome YAML",
+          "acid_running_binary_sensor": "Must match the object_id of the acid pump running binary sensor in your ESPHome YAML"
+        }
+      }
+    }
+  }
+}

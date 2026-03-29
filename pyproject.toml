@@ -1,0 +1,18 @@
+[tool.pytest.ini_options]
+addopts = "-q --cov=custom_components/atlas_scientific_pool --cov-report=term-missing"
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC", "RUF"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true
+packages = ["custom_components.atlas_scientific_pool"]

@@ -1,0 +1,587 @@
+"""Coordinator for Atlas Scientific Pool integration."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+import logging
+from typing import Any
+
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+
+from .const import (
+    ALERT_ORP_LOW,
+    ALERT_PH_HIGH,
+    ALERT_PH_LOW,
+    ROLE_CHEMISTRY,
+    ROLE_LEVEL,
+)
+from .esphome_api import ESPHomeNodeClient, ESPHomeTransportError
+from .models import CooldownState, NodeCommandMap, NodeConfig, SafetyConfig
+
+_LOGGER = logging.getLogger(__name__)
+
+
+class DoseSafetyError(HomeAssistantError):
+    """Raised when a requested dosing action violates safety rules."""
+
+
+def _as_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        return value.strip().lower() in {"true", "on", "1"}
+    return False
+
+
+class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
+    """Fetch and combine state from three ESPHome nodes."""
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        *,
+        chemistry: NodeConfig,
+        pressure: NodeConfig,
+        level: NodeConfig,
+        timeout: float,
+        update_interval: timedelta,
+        safety: SafetyConfig,
+        command_map: NodeCommandMap,
+    ) -> None:
+        super().__init__(
+            hass,
+            _LOGGER,
+            name="Atlas Scientific Pool",
+            update_interval=update_interval,
+            update_method=self._async_update,
+            always_update=False,
+        )
+
+        self._clients: dict[str, ESPHomeNodeClient] = {
+            chemistry.role: ESPHomeNodeClient(
+                chemistry.host, chemistry.port, chemistry.noise_psk, timeout
+            ),
+            pressure.role: ESPHomeNodeClient(
+                pressure.host, pressure.port, pressure.noise_psk, timeout
+            ),
+            level.role: ESPHomeNodeClient(level.host, level.port, level.noise_psk, timeout),
+        }
+
+        self._safety = safety
+        self._command_map = command_map
+        self._cooldown = CooldownState()
+        self._chlorine_target_ml = safety.default_chlorine_dose_ml
+        self._acid_target_ml = safety.default_acid_dose_ml
+        self._target_orp_mv = safety.default_target_orp
+        self._target_water_level_percent = safety.default_target_water_level_percent
+        self._last_fill_command: str | None = None
+        self._fill_started_at: datetime | None = None
+        self._last_alert_at: dict[str, datetime] = {}
+
+    async def async_shutdown(self) -> None:
+        """Close all node connections."""
+        for client in self._clients.values():
+            await client.disconnect()
+
+    async def _async_update(self) -> dict[str, Any]:
+        data: dict[str, Any] = {
+            "nodes": {},
+            "updated_at": datetime.now(tz=UTC).isoformat(),
+        }
+
+        for role, client in self._clients.items():
+            try:
+                snapshot = await client.refresh()
+                data["nodes"][role] = {
+                    "available": True,
+                    "device_name": snapshot.device_name,
+                    "model": snapshot.model,
+                    "mac_address": snapshot.mac_address,
+                    "sensor_object_ids": client.all_sensor_object_ids(),
+                    "number_object_ids": client.all_number_object_ids(),
+                    "button_object_ids": client.all_button_object_ids(),
+                    "states": {
+                        object_id: client.state_value(object_id)
+                        for object_id in snapshot.infos_by_object_id
+                    },
+                }
+            except ESPHomeTransportError as err:
+                _LOGGER.warning("Node '%s' update failed: %s", role, err)
+                data["nodes"][role] = {
+                    "available": False,
+                    "error": str(err),
+                }
+
+        await self._async_run_orp_automation(data)
+        await self._async_run_level_automation(data)
+        await self._async_check_alerts(data)
+
+        if not any(node.get("available") for node in data["nodes"].values()):
+            raise UpdateFailed("No pool nodes are reachable")
+
+        return data
+
+    async def _async_send_notification(self, alert_key: str, title: str, message: str) -> None:
+        """Fire a persistent_notification and optionally a configured notify service."""
+        await self.hass.services.async_call(
+            "persistent_notification",
+            "create",
+            {
+                "title": title,
+                "message": message,
+                "notification_id": f"atlas_pool_{alert_key}",
+            },
+        )
+        service_full = self._safety.notify_service.strip()
+        if service_full:
+            if "." in service_full:
+                domain, service_name = service_full.split(".", 1)
+            else:
+                domain, service_name = "notify", service_full
+            if self.hass.services.has_service(domain, service_name):
+                await self.hass.services.async_call(
+                    domain,
+                    service_name,
+                    {"title": title, "message": message},
+                )
+            else:
+                _LOGGER.warning(
+                    "Notification service '%s.%s' is not available", domain, service_name
+                )
+
+    async def _async_check_alerts(self, data: dict[str, Any]) -> None:
+        """Check ORP and pH thresholds and fire notifications on breach."""
+        alerts: dict[str, Any] = {}
+        data["alerts"] = alerts
+
+        if not self._safety.enable_notifications:
+            return
+
+        chemistry = data["nodes"].get(ROLE_CHEMISTRY, {})
+        if not chemistry.get("available"):
+            return
+
+        states = chemistry.get("states", {})
+        now = datetime.now(tz=UTC)
+        cooldown = timedelta(minutes=self._safety.notification_cooldown_minutes)
+
+        # --- ORP low alert ---
+        orp_raw = states.get(self._safety.orp_sensor_object_id)
+        try:
+            orp_value = float(orp_raw)
+            alerts["orp"] = round(orp_value, 1)
+            orp_low = orp_value < self._safety.orp_alert_threshold
+            alerts[ALERT_ORP_LOW] = orp_low
+            if orp_low:
+                last = self._last_alert_at.get(ALERT_ORP_LOW)
+                if last is None or (now - last) >= cooldown:
+                    await self._async_send_notification(
+                        ALERT_ORP_LOW,
+                        "Pool ORP Low",
+                        (
+                            f"Pool ORP is {round(orp_value, 1)} mV "
+                            f"(alert threshold: {self._safety.orp_alert_threshold} mV). "
+                            "Consider dosing chlorine."
+                        ),
+                    )
+                    self._last_alert_at[ALERT_ORP_LOW] = now
+        except (TypeError, ValueError):
+            pass
+
+        # --- pH alerts ---
+        ph_raw = states.get(self._safety.ph_sensor_object_id)
+        try:
+            ph_value = float(ph_raw)
+            alerts["ph"] = round(ph_value, 2)
+            ph_low = ph_value < self._safety.ph_min_threshold
+            ph_high = ph_value > self._safety.ph_max_threshold
+            alerts[ALERT_PH_LOW] = ph_low
+            alerts[ALERT_PH_HIGH] = ph_high
+
+            if ph_low:
+                last = self._last_alert_at.get(ALERT_PH_LOW)
+                if last is None or (now - last) >= cooldown:
+                    await self._async_send_notification(
+                        ALERT_PH_LOW,
+                        "Pool pH Low",
+                        (
+                            f"Pool pH is {round(ph_value, 2)} "
+                            f"(minimum: {self._safety.ph_min_threshold}). "
+                            "Consider adding pH increaser."
+                        ),
+                    )
+                    self._last_alert_at[ALERT_PH_LOW] = now
+            elif ph_high:
+                last = self._last_alert_at.get(ALERT_PH_HIGH)
+                if last is None or (now - last) >= cooldown:
+                    await self._async_send_notification(
+                        ALERT_PH_HIGH,
+                        "Pool pH High",
+                        (
+                            f"Pool pH is {round(ph_value, 2)} "
+                            f"(maximum: {self._safety.ph_max_threshold}). "
+                            "Consider dosing acid."
+                        ),
+                    )
+                    self._last_alert_at[ALERT_PH_HIGH] = now
+        except (TypeError, ValueError):
+            pass
+
+    async def _async_run_level_automation(self, data: dict[str, Any]) -> None:
+        """Start/stop fill actions based on water level target and hysteresis."""
+        level_automation: dict[str, Any] = {
+            "enabled": self._safety.enable_level_automation,
+            "target_level_percent": self._target_water_level_percent,
+            "hysteresis_percent": self._safety.level_hysteresis_percent,
+            "level_sensor_object_id": self._safety.level_sensor_object_id,
+            "max_fill_runtime_minutes": self._safety.max_fill_runtime_minutes,
+            "action": "none",
+        }
+        data["water_level_automation"] = level_automation
+
+        if not self._safety.enable_level_automation:
+            return
+
+        level_node = data["nodes"].get(ROLE_LEVEL, {})
+        if not level_node.get("available"):
+            level_automation["action"] = "level_node_unavailable"
+            return
+
+        states = level_node.get("states", {})
+        level_raw = states.get(self._safety.level_sensor_object_id)
+        try:
+            level_percent = float(level_raw)
+        except (TypeError, ValueError):
+            level_automation["action"] = "level_unavailable"
+            return
+
+        lower_trigger = self._target_water_level_percent - self._safety.level_hysteresis_percent
+        level_automation["current_level_percent"] = level_percent
+        level_automation["lower_trigger_percent"] = lower_trigger
+
+        fill_running: bool | None = None
+        running_sensor = self._command_map.fill_running_binary_sensor_object_id
+        if running_sensor:
+            fill_running = _as_bool(states.get(running_sensor))
+
+        now = datetime.now(tz=UTC)
+        if fill_running is True and self._fill_started_at is None:
+            # First observation of an active fill cycle.
+            self._fill_started_at = now
+        if fill_running is False:
+            self._fill_started_at = None
+
+        inferred_running = fill_running is True or (fill_running is None and self._last_fill_command == "start")
+        if inferred_running and self._fill_started_at is None:
+            self._fill_started_at = now
+
+        level_client = self._clients[ROLE_LEVEL]
+
+        if inferred_running and self._fill_started_at is not None:
+            runtime = now - self._fill_started_at
+            level_automation["fill_runtime_seconds"] = round(runtime.total_seconds(), 1)
+            if runtime > timedelta(minutes=self._safety.max_fill_runtime_minutes):
+                stop_button = self._command_map.fill_stop_button_object_id
+                if not stop_button:
+                    level_automation["action"] = "timeout_no_fill_stop_configured"
+                    return
+
+                await level_client.press_button(stop_button)
+                self._last_fill_command = "stop"
+                self._fill_started_at = None
+                level_automation["action"] = "fill_timeout_stopped"
+                return
+
+        if level_percent < lower_trigger:
+            if fill_running is True or self._last_fill_command == "start":
+                level_automation["action"] = "already_filling"
+                return
+
+            start_button = self._command_map.fill_start_button_object_id
+            if not start_button:
+                level_automation["action"] = "no_fill_start_configured"
+                return
+
+            await level_client.press_button(start_button)
+            self._last_fill_command = "start"
+            self._fill_started_at = now
+            level_automation["action"] = "fill_started"
+            return
+
+        if level_percent >= self._target_water_level_percent:
+            if fill_running is False or self._last_fill_command == "stop":
+                level_automation["action"] = "already_stopped"
+                return
+
+            stop_button = self._command_map.fill_stop_button_object_id
+            if not stop_button:
+                level_automation["action"] = "no_fill_stop_configured"
+                return
+
+            await level_client.press_button(stop_button)
+            self._last_fill_command = "stop"
+            self._fill_started_at = None
+            level_automation["action"] = "fill_stopped"
+            return
+
+        level_automation["action"] = "filling_window"
+
+    async def _async_run_orp_automation(self, data: dict[str, Any]) -> None:
+        """Automatically dose chlorine when ORP is below target threshold."""
+        automation: dict[str, Any] = {
+            "enabled": self._safety.enable_orp_automation,
+            "target_orp_mv": self._target_orp_mv,
+            "orp_sensor_object_id": self._safety.orp_sensor_object_id,
+            "hysteresis_mv": self._safety.orp_hysteresis_mv,
+            "action": "none",
+        }
+        data["automation"] = automation
+
+        if not self._safety.enable_orp_automation:
+            return
+        if not self._safety.controls_enabled:
+            automation["action"] = "controls_disabled"
+            return
+
+        chemistry = data["nodes"].get(ROLE_CHEMISTRY, {})
+        if not chemistry.get("available"):
+            automation["action"] = "chemistry_unavailable"
+            return
+
+        orp_raw = chemistry.get("states", {}).get(self._safety.orp_sensor_object_id)
+        try:
+            orp_value = float(orp_raw)
+        except (TypeError, ValueError):
+            automation["action"] = "orp_unavailable"
+            return
+
+        automation["current_orp_mv"] = orp_value
+        lower_trigger = self._target_orp_mv - self._safety.orp_hysteresis_mv
+        automation["lower_trigger_mv"] = lower_trigger
+
+        if orp_value >= lower_trigger:
+            automation["action"] = "within_target"
+            return
+
+        try:
+            await self._async_validate_dose(
+                is_chlorine=True,
+                volume_ml=self._chlorine_target_ml,
+                chemistry_states=chemistry.get("states", {}),
+            )
+        except DoseSafetyError as err:
+            automation["action"] = "blocked"
+            automation["reason"] = str(err)
+            return
+
+        chemistry_client = self._clients[ROLE_CHEMISTRY]
+        await chemistry_client.set_number(
+            self._command_map.chlorine_volume_number,
+            self._chlorine_target_ml,
+        )
+        await chemistry_client.press_button(self._command_map.chlorine_dose_button)
+        self._cooldown.chlorine_dose_at = datetime.now(tz=UTC)
+
+        automation["action"] = "chlorine_dosed"
+        automation["dose_ml"] = self._chlorine_target_ml
+
+    def node_available(self, role: str) -> bool:
+        node = self.data.get("nodes", {}).get(role, {}) if self.data else {}
+        return bool(node.get("available"))
+
+    def state_value(self, role: str, object_id: str) -> Any | None:
+        node = self.data.get("nodes", {}).get(role, {}) if self.data else {}
+        return node.get("states", {}).get(object_id)
+
+    @property
+    def safety(self) -> SafetyConfig:
+        """Expose immutable safety settings."""
+        return self._safety
+
+    @property
+    def command_map(self) -> NodeCommandMap:
+        """Expose object-id mapping."""
+        return self._command_map
+
+    @property
+    def chlorine_target_ml(self) -> float:
+        """Current staged chlorine dose amount in ml."""
+        return self._chlorine_target_ml
+
+    @property
+    def acid_target_ml(self) -> float:
+        """Current staged acid dose amount in ml."""
+        return self._acid_target_ml
+
+    def set_chlorine_target_ml(self, value: float) -> None:
+        """Update staged chlorine dose amount."""
+        self._chlorine_target_ml = value
+
+    def set_acid_target_ml(self, value: float) -> None:
+        """Update staged acid dose amount."""
+        self._acid_target_ml = value
+
+    @property
+    def target_orp_mv(self) -> float:
+        """Current target ORP in mV used by chlorine automation."""
+        return self._target_orp_mv
+
+    def set_target_orp_mv(self, value: float) -> None:
+        """Update target ORP used by automation."""
+        self._target_orp_mv = value
+
+    @property
+    def target_water_level_percent(self) -> float:
+        """Current target water level percentage used by fill automation."""
+        return self._target_water_level_percent
+
+    def set_target_water_level_percent(self, value: float) -> None:
+        """Update water-level target used by automation."""
+        self._target_water_level_percent = value
+
+    async def async_dose_chlorine(self, volume_ml: float) -> None:
+        """Apply chlorine dosing with safety checks."""
+        await self._async_validate_dose(is_chlorine=True, volume_ml=volume_ml)
+        chemistry = self._clients[ROLE_CHEMISTRY]
+        await chemistry.set_number(self._command_map.chlorine_volume_number, volume_ml)
+        await chemistry.press_button(self._command_map.chlorine_dose_button)
+        self._cooldown.chlorine_dose_at = datetime.now(tz=UTC)
+        await self.async_request_refresh()
+
+    async def async_dose_acid(self, volume_ml: float) -> None:
+        """Apply acid dosing with safety checks."""
+        await self._async_validate_dose(is_chlorine=False, volume_ml=volume_ml)
+        chemistry = self._clients[ROLE_CHEMISTRY]
+        await chemistry.set_number(self._command_map.acid_volume_number, volume_ml)
+        await chemistry.press_button(self._command_map.acid_dose_button)
+        self._cooldown.acid_dose_at = datetime.now(tz=UTC)
+        await self.async_request_refresh()
+
+    async def async_stop_chlorine(self) -> None:
+        """Stop chlorine pump."""
+        await self._async_require_controls_enabled()
+        chemistry = self._clients[ROLE_CHEMISTRY]
+        await chemistry.press_button(self._command_map.chlorine_stop_button)
+        await self.async_request_refresh()
+
+    async def async_stop_acid(self) -> None:
+        """Stop acid pump."""
+        await self._async_require_controls_enabled()
+        chemistry = self._clients[ROLE_CHEMISTRY]
+        await chemistry.press_button(self._command_map.acid_stop_button)
+        await self.async_request_refresh()
+
+    async def _async_require_controls_enabled(self) -> None:
+        if not self._safety.controls_enabled:
+            raise DoseSafetyError("Pump controls are disabled in options")
+
+    def _chlorine_pool_size_cap_ml(self) -> float:
+        """Return max chlorine dose in ml based on pool volume and chemistry settings."""
+        strength = self._safety.chlorine_strength_percent
+        volume_l = self._safety.pool_volume_liters
+        max_ppm = self._safety.max_ppm_increase_per_dose
+
+        # Approximation: X% available chlorine ~= X*10 mg available chlorine per ml.
+        mg_available_per_ml = strength * 10.0
+        if mg_available_per_ml <= 0:
+            return 0.0
+        if volume_l <= 0 or max_ppm <= 0:
+            return 0.0
+
+        return (max_ppm * volume_l) / mg_available_per_ml
+
+    def chlorine_pool_size_cap_ml(self) -> float:
+        """Public helper for current pool-size chlorine cap in ml."""
+        return self._chlorine_pool_size_cap_ml()
+
+    def _acid_pool_size_cap_ml(self) -> float:
+        """Return max acid dose in ml based on pH-drop settings and water chemistry."""
+        volume_l = self._safety.pool_volume_liters
+        acid_strength = self._safety.acid_strength_percent
+        max_ph_drop = self._safety.max_ph_drop_per_dose
+        alkalinity = self._safety.total_alkalinity_ppm
+
+        if volume_l <= 0 or acid_strength <= 0 or max_ph_drop <= 0 or alkalinity <= 0:
+            return 0.0
+
+        # Practical approximation for muriatic acid dosing from pool service calculators.
+        # 10k gal (~37,854 L), 31.45% acid, TA 100 ppm: ~26.5 fl oz for ~0.1 pH drop.
+        base_ml_per_0_1_ph_at_ref = 783.0
+        volume_factor = volume_l / 37854.0
+        strength_factor = 31.45 / acid_strength
+        alkalinity_factor = alkalinity / 100.0
+        ph_factor = max_ph_drop / 0.1
+
+        return base_ml_per_0_1_ph_at_ref * volume_factor * strength_factor * alkalinity_factor * ph_factor
+
+    def acid_pool_size_cap_ml(self) -> float:
+        """Public helper for current pool-size acid cap in ml."""
+        return self._acid_pool_size_cap_ml()
+
+    async def _async_validate_dose(
+        self,
+        *,
+        is_chlorine: bool,
+        volume_ml: float,
+        chemistry_states: dict[str, Any] | None = None,
+    ) -> None:
+        await self._async_require_controls_enabled()
+
+        if volume_ml <= 0:
+            raise DoseSafetyError("Dose must be greater than 0 ml")
+
+        effective_max = self._safety.max_dose_ml
+        if is_chlorine:
+            effective_max = min(effective_max, self._chlorine_pool_size_cap_ml())
+        else:
+            effective_max = min(effective_max, self._acid_pool_size_cap_ml())
+
+        if volume_ml > effective_max:
+            raise DoseSafetyError(
+                f"Dose {volume_ml} ml exceeds maximum {round(effective_max, 1)} ml"
+            )
+
+        if is_chlorine:
+            state_source = chemistry_states or {}
+            acid_running_state = state_source.get(
+                self._command_map.acid_running_binary_sensor,
+                self.state_value(ROLE_CHEMISTRY, self._command_map.acid_running_binary_sensor),
+            )
+            running_opposite = _as_bool(
+                acid_running_state
+            )
+            last_action = self._cooldown.chlorine_dose_at
+            action = "chlorine"
+        else:
+            state_source = chemistry_states or {}
+            chlorine_running_state = state_source.get(
+                self._command_map.chlorine_running_binary_sensor,
+                self.state_value(
+                    ROLE_CHEMISTRY,
+                    self._command_map.chlorine_running_binary_sensor,
+                ),
+            )
+            running_opposite = _as_bool(
+                chlorine_running_state
+            )
+            last_action = self._cooldown.acid_dose_at
+            action = "acid"
+
+        if running_opposite:
+            raise DoseSafetyError(
+                f"Cannot dose {action} while the opposite pump is running"
+            )
+
+        if last_action is None:
+            return
+
+        elapsed = datetime.now(tz=UTC) - last_action
+        if elapsed < timedelta(seconds=self._safety.cooldown_seconds):
+            remaining = self._safety.cooldown_seconds - int(elapsed.total_seconds())
+            raise DoseSafetyError(
+                f"{action.title()} cooldown active. Wait {max(remaining, 1)} seconds"
+            )

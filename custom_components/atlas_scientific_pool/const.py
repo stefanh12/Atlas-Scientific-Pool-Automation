@@ -1,0 +1,114 @@
+"""Constants for Atlas Scientific Pool integration."""
+
+from __future__ import annotations
+
+DOMAIN = "atlas_scientific_pool"
+
+PLATFORMS = ["sensor", "number", "button", "binary_sensor"]
+
+CONF_CHEMISTRY_HOST = "chemistry_host"
+CONF_CHEMISTRY_PORT = "chemistry_port"
+CONF_CHEMISTRY_NOISE_PSK = "chemistry_noise_psk"
+CONF_PRESSURE_HOST = "pressure_host"
+CONF_PRESSURE_PORT = "pressure_port"
+CONF_PRESSURE_NOISE_PSK = "pressure_noise_psk"
+CONF_LEVEL_HOST = "level_host"
+CONF_LEVEL_PORT = "level_port"
+CONF_LEVEL_NOISE_PSK = "level_noise_psk"
+
+CONF_SCAN_INTERVAL = "scan_interval"
+CONF_TIMEOUT = "timeout"
+CONF_ENABLE_CONTROLS = "enable_controls"
+CONF_MAX_DOSE_ML = "max_dose_ml"
+CONF_COOLDOWN_SECONDS = "cooldown_seconds"
+CONF_DEFAULT_CHLORINE_DOSE_ML = "default_chlorine_dose_ml"
+CONF_DEFAULT_ACID_DOSE_ML = "default_acid_dose_ml"
+CONF_ENABLE_ORP_AUTOMATION = "enable_orp_automation"
+CONF_DEFAULT_TARGET_ORP = "default_target_orp"
+CONF_ORP_SENSOR_OBJECT_ID = "orp_sensor_object_id"
+CONF_ORP_HYSTERESIS_MV = "orp_hysteresis_mv"
+CONF_ENABLE_LEVEL_AUTOMATION = "enable_level_automation"
+CONF_DEFAULT_TARGET_WATER_LEVEL_PERCENT = "default_target_water_level_percent"
+CONF_LEVEL_HYSTERESIS_PERCENT = "level_hysteresis_percent"
+CONF_LEVEL_SENSOR_OBJECT_ID = "level_sensor_object_id"
+CONF_FILL_START_BUTTON_OBJECT_ID = "fill_start_button_object_id"
+CONF_FILL_STOP_BUTTON_OBJECT_ID = "fill_stop_button_object_id"
+CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID = "fill_running_binary_sensor_object_id"
+CONF_MAX_FILL_RUNTIME_MINUTES = "max_fill_runtime_minutes"
+CONF_POOL_VOLUME_LITERS = "pool_volume_liters"
+CONF_CHLORINE_STRENGTH_PERCENT = "chlorine_strength_percent"
+CONF_MAX_PPM_INCREASE_PER_DOSE = "max_ppm_increase_per_dose"
+CONF_ACID_STRENGTH_PERCENT = "acid_strength_percent"
+CONF_MAX_PH_DROP_PER_DOSE = "max_ph_drop_per_dose"
+CONF_TOTAL_ALKALINITY_PPM = "total_alkalinity_ppm"
+
+CONF_ENABLE_NOTIFICATIONS = "enable_notifications"
+CONF_NOTIFY_SERVICE = "notify_service"
+CONF_PH_SENSOR_OBJECT_ID = "ph_sensor_object_id"
+CONF_PH_MIN_THRESHOLD = "ph_min_threshold"
+CONF_PH_MAX_THRESHOLD = "ph_max_threshold"
+CONF_ORP_ALERT_THRESHOLD = "orp_alert_threshold"
+CONF_NOTIFICATION_COOLDOWN_MINUTES = "notification_cooldown_minutes"
+
+CONF_CHLORINE_VOLUME_NUMBER = "chlorine_volume_number"
+CONF_ACID_VOLUME_NUMBER = "acid_volume_number"
+CONF_CHLORINE_DOSE_BUTTON = "chlorine_dose_button"
+CONF_ACID_DOSE_BUTTON = "acid_dose_button"
+CONF_CHLORINE_STOP_BUTTON = "chlorine_stop_button"
+CONF_ACID_STOP_BUTTON = "acid_stop_button"
+
+CONF_CHLORINE_RUNNING_BINARY_SENSOR = "chlorine_running_binary_sensor"
+CONF_ACID_RUNNING_BINARY_SENSOR = "acid_running_binary_sensor"
+
+DEFAULT_PORT = 6053
+DEFAULT_SCAN_INTERVAL = 30
+DEFAULT_TIMEOUT = 10
+DEFAULT_ENABLE_CONTROLS = True
+DEFAULT_MAX_DOSE_ML = 100.0
+DEFAULT_COOLDOWN_SECONDS = 60
+DEFAULT_CHLORINE_DOSE_ML = 50.0
+DEFAULT_ACID_DOSE_ML = 50.0
+DEFAULT_ENABLE_ORP_AUTOMATION = False
+DEFAULT_TARGET_ORP = 700.0
+DEFAULT_ORP_SENSOR_OBJECT_ID = "orp"
+DEFAULT_ORP_HYSTERESIS_MV = 15.0
+DEFAULT_ENABLE_LEVEL_AUTOMATION = False
+DEFAULT_TARGET_WATER_LEVEL_PERCENT = 85.0
+DEFAULT_LEVEL_HYSTERESIS_PERCENT = 3.0
+DEFAULT_LEVEL_SENSOR_OBJECT_ID = "pool_level"
+DEFAULT_FILL_START_BUTTON_OBJECT_ID = ""
+DEFAULT_FILL_STOP_BUTTON_OBJECT_ID = ""
+DEFAULT_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID = ""
+DEFAULT_MAX_FILL_RUNTIME_MINUTES = 45
+DEFAULT_POOL_VOLUME_LITERS = 50000.0
+DEFAULT_CHLORINE_STRENGTH_PERCENT = 12.5
+DEFAULT_MAX_PPM_INCREASE_PER_DOSE = 0.3
+DEFAULT_ACID_STRENGTH_PERCENT = 31.45
+DEFAULT_MAX_PH_DROP_PER_DOSE = 0.1
+DEFAULT_TOTAL_ALKALINITY_PPM = 80.0
+
+DEFAULT_ENABLE_NOTIFICATIONS = False
+DEFAULT_NOTIFY_SERVICE = ""
+DEFAULT_PH_SENSOR_OBJECT_ID = "ph"
+DEFAULT_PH_MIN_THRESHOLD = 7.2
+DEFAULT_PH_MAX_THRESHOLD = 7.8
+DEFAULT_ORP_ALERT_THRESHOLD = 600.0
+DEFAULT_NOTIFICATION_COOLDOWN_MINUTES = 60
+
+ALERT_ORP_LOW = "orp_low"
+ALERT_PH_LOW = "ph_low"
+ALERT_PH_HIGH = "ph_high"
+
+DEFAULT_CHLORINE_VOLUME_NUMBER = "volume_cl"
+DEFAULT_ACID_VOLUME_NUMBER = "volume_acid"
+DEFAULT_CHLORINE_DOSE_BUTTON = "dose_clorine_over_time"
+DEFAULT_ACID_DOSE_BUTTON = "dose_acid_over_time"
+DEFAULT_CHLORINE_STOP_BUTTON = "stop_cl_pump"
+DEFAULT_ACID_STOP_BUTTON = "stop_acid_pump"
+DEFAULT_CHLORINE_RUNNING_BINARY_SENSOR = "pump_cl_state"
+DEFAULT_ACID_RUNNING_BINARY_SENSOR = "pump_acid_state"
+
+ROLE_CHEMISTRY = "chemistry"
+ROLE_PRESSURE = "pressure"
+ROLE_LEVEL = "level"
+NODE_ROLES = (ROLE_CHEMISTRY, ROLE_PRESSURE, ROLE_LEVEL)
