@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 # Ensure `custom_components` is importable during CI test collection.
 ROOT = Path(__file__).resolve().parents[1]
