@@ -2,7 +2,7 @@
   "domain": "atlas_scientific_pool",
   "name": "Atlas Scientific Pool",
   "codeowners": [
-    "@stefan"
+    "@stefanh12"
   ],
   "config_flow": true,
   "documentation": "https://github.com/stefan/Atlas-Scientific-Pool-Automation",
