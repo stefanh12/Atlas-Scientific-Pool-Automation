@@ -56,6 +56,7 @@ def coordinator(hass: HomeAssistant) -> AtlasScientificPoolCoordinator:
         update_interval=timedelta(seconds=30),
         safety=SafetyConfig(
             controls_enabled=True,
+            winter_mode=False,
             max_dose_ml=100,
             cooldown_seconds=60,
             default_chlorine_dose_ml=50,
@@ -403,3 +404,50 @@ async def test_water_level_automation_stops_fill_on_runtime_timeout(
 
     assert level_client.button_calls == ["fill_stop"]
     assert data["water_level_automation"]["action"] == "fill_timeout_stopped"
+
+
+async def test_winter_mode_blocks_manual_controls(
+    coordinator: AtlasScientificPoolCoordinator,
+) -> None:
+    """Manual dosing must be blocked while winter mode is active."""
+    coordinator._safety.winter_mode = True
+
+    with pytest.raises(DoseSafetyError, match="Winter mode"):
+        await coordinator.async_dose_chlorine(20)
+
+
+async def test_winter_mode_blocks_automations(
+    coordinator: AtlasScientificPoolCoordinator,
+) -> None:
+    """Automations should pause and report winter-mode action."""
+    orp_data = {
+        "nodes": {
+            ROLE_CHEMISTRY: {
+                "available": True,
+                "states": {
+                    "pump_cl_state": False,
+                    "pump_acid_state": False,
+                    "orp": 640,
+                },
+            }
+        }
+    }
+    level_data = {
+        "nodes": {
+            ROLE_LEVEL: {
+                "available": True,
+                "states": {
+                    "pool_level": 70,
+                    "fill_running": False,
+                },
+            }
+        }
+    }
+
+    coordinator._safety.winter_mode = True
+
+    await coordinator._async_run_orp_automation(orp_data)
+    await coordinator._async_run_level_automation(level_data)
+
+    assert orp_data["automation"]["action"] == "winter_mode"
+    assert level_data["water_level_automation"]["action"] == "winter_mode"

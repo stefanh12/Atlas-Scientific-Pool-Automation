@@ -27,6 +27,7 @@ from .const import (
     CONF_DEFAULT_TARGET_ORP,
     CONF_DEFAULT_TARGET_WATER_LEVEL_PERCENT,
     CONF_ENABLE_CONTROLS,
+    CONF_WINTER_MODE,
     CONF_ENABLE_LEVEL_AUTOMATION,
     CONF_ENABLE_NOTIFICATIONS,
     CONF_ENABLE_ORP_AUTOMATION,
@@ -75,6 +76,7 @@ from .const import (
     DEFAULT_CHLORINE_VOLUME_NUMBER,
     DEFAULT_COOLDOWN_SECONDS,
     DEFAULT_ENABLE_CONTROLS,
+    DEFAULT_WINTER_MODE,
     DEFAULT_ENABLE_LEVEL_AUTOMATION,
     DEFAULT_ENABLE_NOTIFICATIONS,
     DEFAULT_ENABLE_ORP_AUTOMATION,
@@ -169,8 +171,10 @@ _ROLE_CONF_MAP: tuple[tuple[str, str], ...] = (
     (CONF_CHEMISTRY_NODE, "chemistry"),
     (CONF_PRESSURE_NODE, "pressure"),
     (CONF_LEVEL_NODE, "level"),
-    (CONF_PUMP_NODE, "pump"),
     (CONF_HEAT_PUMP_NODE, "heat_pump"),
+    # Match heat pump before generic pump to avoid grabbing names like
+    # "brilix-heat-pump" as the circulation pump.
+    (CONF_PUMP_NODE, "pump"),
 )
 
 
@@ -221,6 +225,10 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(
                 CONF_ENABLE_CONTROLS,
                 default=defaults.get(CONF_ENABLE_CONTROLS, DEFAULT_ENABLE_CONTROLS),
+            ): bool,
+            vol.Required(
+                CONF_WINTER_MODE,
+                default=defaults.get(CONF_WINTER_MODE, DEFAULT_WINTER_MODE),
             ): bool,
             vol.Required(
                 CONF_MAX_DOSE_ML,
@@ -594,6 +602,7 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
                         CONF_SCAN_INTERVAL: DEFAULT_SCAN_INTERVAL,
                         CONF_TIMEOUT: DEFAULT_TIMEOUT,
                         CONF_ENABLE_CONTROLS: DEFAULT_ENABLE_CONTROLS,
+                        CONF_WINTER_MODE: DEFAULT_WINTER_MODE,
                         CONF_MAX_DOSE_ML: DEFAULT_MAX_DOSE_ML,
                         CONF_COOLDOWN_SECONDS: DEFAULT_COOLDOWN_SECONDS,
                         CONF_DEFAULT_CHLORINE_DOSE_ML: DEFAULT_CHLORINE_DOSE_ML,

@@ -32,6 +32,7 @@
           "scan_interval": "Polling interval (seconds)",
           "timeout": "Connection timeout (seconds)",
           "enable_controls": "Enable pump controls",
+          "winter_mode": "Winter mode (pause controls and automations)",
           "max_dose_ml": "Maximum dose per action (ml)",
           "cooldown_seconds": "Cooldown between doses (seconds)",
           "default_chlorine_dose_ml": "Default chlorine dose (ml)",
@@ -79,6 +80,7 @@
         "data_description": {
           "scan_interval": "How often all three ESPHome nodes are polled for new values",
           "timeout": "Per-node connection timeout in seconds",
+          "winter_mode": "Pauses all dosing, pump controls, and automations while still reading sensor values",
           "max_dose_ml": "Hard upper limit regardless of chemistry caps",
           "cooldown_seconds": "Minimum time that must pass before the same chemical can be dosed again",
           "orp_hysteresis_mv": "Dose is triggered when ORP drops below target minus this value",

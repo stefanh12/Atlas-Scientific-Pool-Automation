@@ -15,8 +15,10 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import (
     CONF_ENABLE_PUMP_SPEED_ABSTRACTION,
     CONF_EXPOSE_RAW_PUMP_SWITCHES,
+    CONF_WINTER_MODE,
     DEFAULT_ENABLE_PUMP_SPEED_ABSTRACTION,
     DEFAULT_EXPOSE_RAW_PUMP_SWITCHES,
+    DEFAULT_WINTER_MODE,
     DOMAIN,
     ROLE_HEAT_PUMP,
     ROLE_PUMP,
@@ -135,6 +137,54 @@ class AtlasScientificPoolPumpSwitch(
         await self.coordinator.async_set_pool_pump_power(False)
 
 
+class AtlasScientificWinterModeSwitch(
+    CoordinatorEntity[AtlasScientificPoolCoordinator], SwitchEntity
+):
+    """Integration-level switch that pauses controls and automations."""
+
+    _attr_has_entity_name = True
+
+    def __init__(
+        self,
+        coordinator: AtlasScientificPoolCoordinator,
+        entry: ConfigEntry,
+    ) -> None:
+        super().__init__(coordinator)
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_winter_mode"
+        self._attr_name = "winter mode"
+
+    @property
+    def is_on(self) -> bool:
+        return self.coordinator.winter_mode
+
+    @property
+    def available(self) -> bool:
+        return True
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"controller_{self._entry.entry_id}")},
+            name=self._entry.title,
+            manufacturer="Atlas Scientific",
+        )
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        self.hass.config_entries.async_update_entry(
+            self._entry,
+            options={**self._entry.options, CONF_WINTER_MODE: True},
+        )
+        await self.coordinator.async_set_winter_mode(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        self.hass.config_entries.async_update_entry(
+            self._entry,
+            options={**self._entry.options, CONF_WINTER_MODE: False},
+        )
+        await self.coordinator.async_set_winter_mode(False)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -154,6 +204,13 @@ async def async_setup_entry(
     )
 
     entities: list[SwitchEntity] = []
+    entities.append(AtlasScientificWinterModeSwitch(coordinator, entry))
+
+    # Keep coordinator state in sync if old entries don't have the option yet.
+    coordinator.safety.winter_mode = bool(
+        options.get(CONF_WINTER_MODE, DEFAULT_WINTER_MODE)
+    )
+
     if enable_pump_speed_abstraction and coordinator.node_available(ROLE_PUMP):
         entities.append(AtlasScientificPoolPumpSwitch(coordinator, entry))
 

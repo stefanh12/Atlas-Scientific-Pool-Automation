@@ -7,6 +7,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.atlas_scientific_pool.config_flow import _build_discovery_map
+from custom_components.atlas_scientific_pool.const import CONF_HEAT_PUMP_NODE, CONF_PUMP_NODE
 from custom_components.atlas_scientific_pool.const import DOMAIN
 
 
@@ -66,3 +68,19 @@ async def test_user_flow_rejects_duplicate_nodes(
 
     assert result2["type"] == FlowResultType.FORM
     assert result2["errors"]["base"] == "nodes_must_be_unique"
+
+
+def test_discovery_map_prefers_brilix_for_heat_pump() -> None:
+    """Ensure Brilix heat pump node is not assigned to the pool pump role."""
+    discovery_map = _build_discovery_map(
+        [
+            "pool-ezo",
+            "pool-filter-pressure",
+            "pool-water-level",
+            "brilix-heat-pump",
+            "pool-pump-vario",
+        ]
+    )
+
+    assert discovery_map[CONF_HEAT_PUMP_NODE] == "brilix-heat-pump"
+    assert discovery_map[CONF_PUMP_NODE] == "pool-pump-vario"

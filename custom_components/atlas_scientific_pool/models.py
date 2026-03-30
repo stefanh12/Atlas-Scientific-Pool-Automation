@@ -42,6 +42,7 @@ class SafetyConfig:
     """Safety limits for pump operations."""
 
     controls_enabled: bool
+    winter_mode: bool
     max_dose_ml: float
     cooldown_seconds: int
     default_chlorine_dose_ml: float

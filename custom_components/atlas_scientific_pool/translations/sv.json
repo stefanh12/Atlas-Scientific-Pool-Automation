@@ -32,6 +32,7 @@
           "scan_interval": "Uppdateringsintervall (sekunder)",
           "timeout": "Anslutningstimeout (sekunder)",
           "enable_controls": "Aktivera pumpreglage",
+          "winter_mode": "Vinterläge (pausa reglage och automatik)",
           "max_dose_ml": "Maxdos per åtgärd (ml)",
           "cooldown_seconds": "Tid mellan doseringar (sekunder)",
           "default_chlorine_dose_ml": "Standard klordosering (ml)",
@@ -79,6 +80,7 @@
         "data_description": {
           "scan_interval": "Hur ofta alla tre ESPHome-noder avfrågas om nya värden",
           "timeout": "Anslutningstimeout per nod i sekunder",
+          "winter_mode": "Pausar all dosering, pumpreglage och automatik medan sensorvärden fortfarande läses in",
           "max_dose_ml": "Absolut övre gräns oavsett kemibegränsningar",
           "cooldown_seconds": "Minsta tid som måste gå innan samma kemikalie kan doseras igen",
           "orp_hysteresis_mv": "Dosering utlöses när ORP sjunker under mål minus detta värde",

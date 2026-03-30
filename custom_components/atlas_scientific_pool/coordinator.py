@@ -95,6 +95,7 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         data: dict[str, Any] = {
             "nodes": {},
             "updated_at": datetime.now(tz=UTC).isoformat(),
+            "winter_mode": self._safety.winter_mode,
         }
 
         for role, client in self._clients.items():
@@ -245,6 +246,7 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Start/stop fill actions based on water level target and hysteresis."""
         level_automation: dict[str, Any] = {
             "enabled": self._safety.enable_level_automation,
+            "winter_mode": self._safety.winter_mode,
             "target_level_percent": self._target_water_level_percent,
             "hysteresis_percent": self._safety.level_hysteresis_percent,
             "level_sensor_object_id": self._safety.level_sensor_object_id,
@@ -252,6 +254,10 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "action": "none",
         }
         data["water_level_automation"] = level_automation
+
+        if self._safety.winter_mode:
+            level_automation["action"] = "winter_mode"
+            return
 
         if not self._safety.enable_level_automation:
             return
@@ -344,12 +350,17 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Automatically dose chlorine when ORP is below target threshold."""
         automation: dict[str, Any] = {
             "enabled": self._safety.enable_orp_automation,
+            "winter_mode": self._safety.winter_mode,
             "target_orp_mv": self._target_orp_mv,
             "orp_sensor_object_id": self._safety.orp_sensor_object_id,
             "hysteresis_mv": self._safety.orp_hysteresis_mv,
             "action": "none",
         }
         data["automation"] = automation
+
+        if self._safety.winter_mode:
+            automation["action"] = "winter_mode"
+            return
 
         if not self._safety.enable_orp_automation:
             return
@@ -409,6 +420,7 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def async_set_node_number(self, role: str, object_id: str, value: float) -> None:
         """Set a number entity on a specific node and refresh."""
+        await self._async_require_controls_enabled()
         client = self._clients.get(role)
         if client is None:
             raise DoseSafetyError(f"Node '{role}' is not configured")
@@ -417,6 +429,7 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def async_set_node_switch(self, role: str, object_id: str, is_on: bool) -> None:
         """Set a switch entity on a specific node and refresh."""
+        await self._async_require_controls_enabled()
         client = self._clients.get(role)
         if client is None:
             raise DoseSafetyError(f"Node '{role}' is not configured")
@@ -425,6 +438,7 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def async_set_node_select(self, role: str, object_id: str, option: str) -> None:
         """Set a select entity on a specific node and refresh."""
+        await self._async_require_controls_enabled()
         client = self._clients.get(role)
         if client is None:
             raise DoseSafetyError(f"Node '{role}' is not configured")
@@ -433,6 +447,7 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def async_set_pool_pump_power(self, is_on: bool) -> None:
         """Set friendly pool-pump power state using mapped object IDs."""
+        await self._async_require_controls_enabled()
         pump_client = self._clients.get(ROLE_PUMP)
         if pump_client is None:
             raise DoseSafetyError("Node 'pump' is not configured")
@@ -451,6 +466,7 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def async_set_pool_pump_speed(self, speed: str) -> None:
         """Set friendly pool-pump speed mapped to relay switches."""
+        await self._async_require_controls_enabled()
         pump_client = self._clients.get(ROLE_PUMP)
         if pump_client is None:
             raise DoseSafetyError("Node 'pump' is not configured")
@@ -484,6 +500,16 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def safety(self) -> SafetyConfig:
         """Expose immutable safety settings."""
         return self._safety
+
+    @property
+    def winter_mode(self) -> bool:
+        """Whether winter mode pause is active."""
+        return self._safety.winter_mode
+
+    async def async_set_winter_mode(self, enabled: bool) -> None:
+        """Enable or disable winter mode and refresh coordinator state."""
+        self._safety.winter_mode = bool(enabled)
+        await self.async_request_refresh()
 
     @property
     def command_map(self) -> NodeCommandMap:
@@ -561,6 +587,8 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _async_require_controls_enabled(self) -> None:
         if not self._safety.controls_enabled:
             raise DoseSafetyError("Pump controls are disabled in options")
+        if self._safety.winter_mode:
+            raise DoseSafetyError("Winter mode is enabled; pool controls are paused")
 
     def _is_pool_pump_running(self) -> bool:
         """Return whether the configured pool pump power switch reports ON."""

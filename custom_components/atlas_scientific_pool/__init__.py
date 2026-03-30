@@ -30,6 +30,7 @@ from .const import (
     CONF_DEFAULT_TARGET_ORP,
     CONF_DEFAULT_TARGET_WATER_LEVEL_PERCENT,
     CONF_ENABLE_CONTROLS,
+    CONF_WINTER_MODE,
     CONF_ENABLE_LEVEL_AUTOMATION,
     CONF_ENABLE_NOTIFICATIONS,
     CONF_ENABLE_ORP_AUTOMATION,
@@ -80,6 +81,7 @@ from .const import (
     DEFAULT_CHLORINE_STRENGTH_PERCENT,
     DEFAULT_COOLDOWN_SECONDS,
     DEFAULT_ENABLE_CONTROLS,
+    DEFAULT_WINTER_MODE,
     DEFAULT_ENABLE_LEVEL_AUTOMATION,
     DEFAULT_ENABLE_NOTIFICATIONS,
     DEFAULT_ENABLE_ORP_AUTOMATION,
@@ -318,6 +320,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         safety=SafetyConfig(
             controls_enabled=bool(
                 options.get(CONF_ENABLE_CONTROLS, DEFAULT_ENABLE_CONTROLS)
+            ),
+            winter_mode=bool(
+                options.get(CONF_WINTER_MODE, DEFAULT_WINTER_MODE)
             ),
             max_dose_ml=float(options.get(CONF_MAX_DOSE_ML, DEFAULT_MAX_DOSE_ML)),
             cooldown_seconds=int(
