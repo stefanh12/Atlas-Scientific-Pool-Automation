@@ -14,6 +14,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, NODE_ROLES
 from .coordinator import AtlasScientificPoolCoordinator
+from .device import integration_device_info
 
 
 @dataclass(slots=True)
@@ -36,6 +37,7 @@ class AtlasScientificPoolSensor(
         description: DynamicSensorDescription,
     ) -> None:
         super().__init__(coordinator)
+        self._entry = entry
         self._description = description
         self._attr_unique_id = (
             f"{entry.entry_id}_{description.role}_{description.object_id}"
@@ -52,15 +54,7 @@ class AtlasScientificPoolSensor(
 
     @property
     def device_info(self) -> DeviceInfo:
-        node = self.coordinator.data.get("nodes", {}).get(self._description.role, {})
-        node_name = node.get("device_name", self._description.role)
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"node_{self._description.role}")},
-            name=node_name,
-            model=node.get("model"),
-            manufacturer="ESPHome",
-            sw_version=None,
-        )
+        return integration_device_info(self._entry)
 
 
 class AtlasScientificOrpAutomationStatusSensor(
@@ -76,6 +70,7 @@ class AtlasScientificOrpAutomationStatusSensor(
         entry: ConfigEntry,
     ) -> None:
         super().__init__(coordinator)
+        self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_orp_automation_status"
         self._attr_name = "orp automation status"
 
@@ -90,13 +85,7 @@ class AtlasScientificOrpAutomationStatusSensor(
 
     @property
     def device_info(self) -> DeviceInfo:
-        node = self.coordinator.data.get("nodes", {}).get("chemistry", {})
-        return DeviceInfo(
-            identifiers={(DOMAIN, "node_chemistry")},
-            name=node.get("device_name", "chemistry"),
-            model=node.get("model"),
-            manufacturer="ESPHome",
-        )
+        return integration_device_info(self._entry)
 
 
 class AtlasScientificOrpErrorSensor(
@@ -113,6 +102,7 @@ class AtlasScientificOrpErrorSensor(
         entry: ConfigEntry,
     ) -> None:
         super().__init__(coordinator)
+        self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_orp_error"
         self._attr_name = "orp error"
 
@@ -136,13 +126,7 @@ class AtlasScientificOrpErrorSensor(
 
     @property
     def device_info(self) -> DeviceInfo:
-        node = self.coordinator.data.get("nodes", {}).get("chemistry", {})
-        return DeviceInfo(
-            identifiers={(DOMAIN, "node_chemistry")},
-            name=node.get("device_name", "chemistry"),
-            model=node.get("model"),
-            manufacturer="ESPHome",
-        )
+        return integration_device_info(self._entry)
 
 
 class AtlasScientificChlorineSafeDoseCapSensor(
@@ -159,6 +143,7 @@ class AtlasScientificChlorineSafeDoseCapSensor(
         entry: ConfigEntry,
     ) -> None:
         super().__init__(coordinator)
+        self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_chlorine_safe_dose_cap"
         self._attr_name = "chlorine safe dose cap"
 
@@ -172,13 +157,7 @@ class AtlasScientificChlorineSafeDoseCapSensor(
 
     @property
     def device_info(self) -> DeviceInfo:
-        node = self.coordinator.data.get("nodes", {}).get("chemistry", {})
-        return DeviceInfo(
-            identifiers={(DOMAIN, "node_chemistry")},
-            name=node.get("device_name", "chemistry"),
-            model=node.get("model"),
-            manufacturer="ESPHome",
-        )
+        return integration_device_info(self._entry)
 
 
 class AtlasScientificAcidSafeDoseCapSensor(
@@ -195,6 +174,7 @@ class AtlasScientificAcidSafeDoseCapSensor(
         entry: ConfigEntry,
     ) -> None:
         super().__init__(coordinator)
+        self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_acid_safe_dose_cap"
         self._attr_name = "acid safe dose cap"
 
@@ -208,13 +188,7 @@ class AtlasScientificAcidSafeDoseCapSensor(
 
     @property
     def device_info(self) -> DeviceInfo:
-        node = self.coordinator.data.get("nodes", {}).get("chemistry", {})
-        return DeviceInfo(
-            identifiers={(DOMAIN, "node_chemistry")},
-            name=node.get("device_name", "chemistry"),
-            model=node.get("model"),
-            manufacturer="ESPHome",
-        )
+        return integration_device_info(self._entry)
 
 
 class AtlasScientificChlorineNeed24hSensor(
@@ -231,6 +205,7 @@ class AtlasScientificChlorineNeed24hSensor(
         entry: ConfigEntry,
     ) -> None:
         super().__init__(coordinator)
+        self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_chlorine_need_24h"
         self._attr_name = "chlorine need 24h"
 
@@ -270,13 +245,7 @@ class AtlasScientificChlorineNeed24hSensor(
 
     @property
     def device_info(self) -> DeviceInfo:
-        node = self.coordinator.data.get("nodes", {}).get("chemistry", {})
-        return DeviceInfo(
-            identifiers={(DOMAIN, "node_chemistry")},
-            name=node.get("device_name", "chemistry"),
-            model=node.get("model"),
-            manufacturer="ESPHome",
-        )
+        return integration_device_info(self._entry)
 
 
 class AtlasScientificAcidNeed24hSensor(
@@ -293,6 +262,7 @@ class AtlasScientificAcidNeed24hSensor(
         entry: ConfigEntry,
     ) -> None:
         super().__init__(coordinator)
+        self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_acid_need_24h"
         self._attr_name = "acid need 24h"
 
@@ -332,13 +302,7 @@ class AtlasScientificAcidNeed24hSensor(
 
     @property
     def device_info(self) -> DeviceInfo:
-        node = self.coordinator.data.get("nodes", {}).get("chemistry", {})
-        return DeviceInfo(
-            identifiers={(DOMAIN, "node_chemistry")},
-            name=node.get("device_name", "chemistry"),
-            model=node.get("model"),
-            manufacturer="ESPHome",
-        )
+        return integration_device_info(self._entry)
 
 
 class AtlasScientificWaterLevelAutomationStatusSensor(
@@ -354,6 +318,7 @@ class AtlasScientificWaterLevelAutomationStatusSensor(
         entry: ConfigEntry,
     ) -> None:
         super().__init__(coordinator)
+        self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_water_level_automation_status"
         self._attr_name = "water level automation status"
 
@@ -372,13 +337,7 @@ class AtlasScientificWaterLevelAutomationStatusSensor(
 
     @property
     def device_info(self) -> DeviceInfo:
-        node = self.coordinator.data.get("nodes", {}).get("level", {})
-        return DeviceInfo(
-            identifiers={(DOMAIN, "node_level")},
-            name=node.get("device_name", "level"),
-            model=node.get("model"),
-            manufacturer="ESPHome",
-        )
+        return integration_device_info(self._entry)
 
 
 class AtlasScientificWaterLevelErrorSensor(
@@ -395,6 +354,7 @@ class AtlasScientificWaterLevelErrorSensor(
         entry: ConfigEntry,
     ) -> None:
         super().__init__(coordinator)
+        self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_water_level_error"
         self._attr_name = "water level error"
 
@@ -418,13 +378,7 @@ class AtlasScientificWaterLevelErrorSensor(
 
     @property
     def device_info(self) -> DeviceInfo:
-        node = self.coordinator.data.get("nodes", {}).get("level", {})
-        return DeviceInfo(
-            identifiers={(DOMAIN, "node_level")},
-            name=node.get("device_name", "level"),
-            model=node.get("model"),
-            manufacturer="ESPHome",
-        )
+        return integration_device_info(self._entry)
 
 
 async def async_setup_entry(

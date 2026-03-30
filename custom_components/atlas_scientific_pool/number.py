@@ -14,6 +14,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, ROLE_CHEMISTRY, ROLE_HEAT_PUMP, ROLE_LEVEL, ROLE_PUMP
 from .coordinator import AtlasScientificPoolCoordinator
+from .device import integration_device_info
 
 
 @dataclass(slots=True)
@@ -43,6 +44,7 @@ class AtlasScientificDoseNumber(
         default_value: float,
     ) -> None:
         super().__init__(coordinator)
+        self._entry = entry
         self._key = key
         self._set_target = set_target
         self._attr_unique_id = f"{entry.entry_id}_{key}"
@@ -55,13 +57,7 @@ class AtlasScientificDoseNumber(
 
     @property
     def device_info(self) -> DeviceInfo:
-        node = self.coordinator.data.get("nodes", {}).get(ROLE_CHEMISTRY, {})
-        return DeviceInfo(
-            identifiers={(DOMAIN, "node_chemistry")},
-            name=node.get("device_name", "chemistry"),
-            model=node.get("model"),
-            manufacturer="ESPHome",
-        )
+        return integration_device_info(self._entry)
 
     async def async_set_native_value(self, value: float) -> None:
         self._attr_native_value = value
@@ -89,6 +85,7 @@ class AtlasScientificTargetOrpNumber(
         entry: ConfigEntry,
     ) -> None:
         super().__init__(coordinator)
+        self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_target_orp"
         self._attr_name = "target orp"
         self._attr_native_value = coordinator.target_orp_mv
@@ -99,13 +96,7 @@ class AtlasScientificTargetOrpNumber(
 
     @property
     def device_info(self) -> DeviceInfo:
-        node = self.coordinator.data.get("nodes", {}).get(ROLE_CHEMISTRY, {})
-        return DeviceInfo(
-            identifiers={(DOMAIN, "node_chemistry")},
-            name=node.get("device_name", "chemistry"),
-            model=node.get("model"),
-            manufacturer="ESPHome",
-        )
+        return integration_device_info(self._entry)
 
     async def async_set_native_value(self, value: float) -> None:
         self._attr_native_value = value
@@ -130,6 +121,7 @@ class AtlasScientificTargetWaterLevelNumber(
         entry: ConfigEntry,
     ) -> None:
         super().__init__(coordinator)
+        self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_target_water_level"
         self._attr_name = "target water level"
         self._attr_native_value = coordinator.target_water_level_percent
@@ -140,13 +132,7 @@ class AtlasScientificTargetWaterLevelNumber(
 
     @property
     def device_info(self) -> DeviceInfo:
-        node = self.coordinator.data.get("nodes", {}).get(ROLE_LEVEL, {})
-        return DeviceInfo(
-            identifiers={(DOMAIN, "node_level")},
-            name=node.get("device_name", "level"),
-            model=node.get("model"),
-            manufacturer="ESPHome",
-        )
+        return integration_device_info(self._entry)
 
     async def async_set_native_value(self, value: float) -> None:
         self._attr_native_value = value
@@ -168,6 +154,7 @@ class AtlasScientificDynamicNodeNumber(
         description: DynamicNumberDescription,
     ) -> None:
         super().__init__(coordinator)
+        self._entry = entry
         self._description = description
         self._attr_unique_id = f"{entry.entry_id}_{description.role}_{description.object_id}_number"
         self._attr_name = description.object_id.replace("_", " ")
@@ -194,13 +181,7 @@ class AtlasScientificDynamicNodeNumber(
 
     @property
     def device_info(self) -> DeviceInfo:
-        node = self.coordinator.data.get("nodes", {}).get(self._description.role, {})
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"node_{self._description.role}")},
-            name=node.get("device_name", self._description.role),
-            model=node.get("model"),
-            manufacturer="ESPHome",
-        )
+        return integration_device_info(self._entry)
 
     async def async_set_native_value(self, value: float) -> None:
         await self.coordinator.async_set_node_number(

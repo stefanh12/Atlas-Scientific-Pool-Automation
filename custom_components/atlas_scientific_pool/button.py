@@ -11,6 +11,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, ROLE_CHEMISTRY
 from .coordinator import AtlasScientificPoolCoordinator
+from .device import integration_device_info
 
 
 class AtlasScientificActionButton(
@@ -28,6 +29,7 @@ class AtlasScientificActionButton(
         key: str,
     ) -> None:
         super().__init__(coordinator)
+        self._entry = entry
         self._key = key
         self._attr_unique_id = f"{entry.entry_id}_{key}"
         self._attr_name = key.replace("_", " ")
@@ -38,13 +40,7 @@ class AtlasScientificActionButton(
 
     @property
     def device_info(self) -> DeviceInfo:
-        node = self.coordinator.data.get("nodes", {}).get(ROLE_CHEMISTRY, {})
-        return DeviceInfo(
-            identifiers={(DOMAIN, "node_chemistry")},
-            name=node.get("device_name", "chemistry"),
-            model=node.get("model"),
-            manufacturer="ESPHome",
-        )
+        return integration_device_info(self._entry)
 
     async def async_press(self) -> None:
         if self._key == "dose_chlorine":

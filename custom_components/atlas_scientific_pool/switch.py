@@ -24,6 +24,7 @@ from .const import (
     ROLE_PUMP,
 )
 from .coordinator import AtlasScientificPoolCoordinator
+from .device import integration_device_info
 
 
 @dataclass(slots=True)
@@ -56,6 +57,7 @@ class AtlasScientificDynamicNodeSwitch(
         description: DynamicSwitchDescription,
     ) -> None:
         super().__init__(coordinator)
+        self._entry = entry
         self._description = description
         self._attr_unique_id = f"{entry.entry_id}_{description.role}_{description.object_id}_switch"
         self._attr_name = description.object_id.replace("_", " ")
@@ -72,13 +74,7 @@ class AtlasScientificDynamicNodeSwitch(
 
     @property
     def device_info(self) -> DeviceInfo:
-        node = self.coordinator.data.get("nodes", {}).get(self._description.role, {})
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"node_{self._description.role}")},
-            name=node.get("device_name", self._description.role),
-            model=node.get("model"),
-            manufacturer="ESPHome",
-        )
+        return integration_device_info(self._entry)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         await self.coordinator.async_set_node_switch(
@@ -108,6 +104,7 @@ class AtlasScientificPoolPumpSwitch(
         entry: ConfigEntry,
     ) -> None:
         super().__init__(coordinator)
+        self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_pool_pump"
         self._attr_name = "pool pump"
 
@@ -122,13 +119,7 @@ class AtlasScientificPoolPumpSwitch(
 
     @property
     def device_info(self) -> DeviceInfo:
-        node = self.coordinator.data.get("nodes", {}).get(ROLE_PUMP, {})
-        return DeviceInfo(
-            identifiers={(DOMAIN, "node_pump")},
-            name=node.get("device_name", "pump"),
-            model=node.get("model"),
-            manufacturer="ESPHome",
-        )
+        return integration_device_info(self._entry)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         await self.coordinator.async_set_pool_pump_power(True)
@@ -164,11 +155,7 @@ class AtlasScientificWinterModeSwitch(
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"controller_{self._entry.entry_id}")},
-            name=self._entry.title,
-            manufacturer="Atlas Scientific",
-        )
+        return integration_device_info(self._entry)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         self.hass.config_entries.async_update_entry(

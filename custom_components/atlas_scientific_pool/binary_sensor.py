@@ -11,6 +11,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, ROLE_CHEMISTRY, ROLE_LEVEL
 from .coordinator import AtlasScientificPoolCoordinator
+from .device import integration_device_info
 
 
 class AtlasScientificOrpAlertBinarySensor(
@@ -26,6 +27,7 @@ class AtlasScientificOrpAlertBinarySensor(
         entry: ConfigEntry,
     ) -> None:
         super().__init__(coordinator)
+        self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_orp_alert"
         self._attr_name = "orp alert"
 
@@ -40,13 +42,7 @@ class AtlasScientificOrpAlertBinarySensor(
 
     @property
     def device_info(self) -> DeviceInfo:
-        node = self.coordinator.data.get("nodes", {}).get(ROLE_CHEMISTRY, {})
-        return DeviceInfo(
-            identifiers={(DOMAIN, "node_chemistry")},
-            name=node.get("device_name", "chemistry"),
-            model=node.get("model"),
-            manufacturer="ESPHome",
-        )
+        return integration_device_info(self._entry)
 
 
 class AtlasScientificPhAlertBinarySensor(
@@ -62,6 +58,7 @@ class AtlasScientificPhAlertBinarySensor(
         entry: ConfigEntry,
     ) -> None:
         super().__init__(coordinator)
+        self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_ph_alert"
         self._attr_name = "ph alert"
 
@@ -88,13 +85,7 @@ class AtlasScientificPhAlertBinarySensor(
 
     @property
     def device_info(self) -> DeviceInfo:
-        node = self.coordinator.data.get("nodes", {}).get(ROLE_CHEMISTRY, {})
-        return DeviceInfo(
-            identifiers={(DOMAIN, "node_chemistry")},
-            name=node.get("device_name", "chemistry"),
-            model=node.get("model"),
-            manufacturer="ESPHome",
-        )
+        return integration_device_info(self._entry)
 
 
 class AtlasScientificOrpAutomationActiveBinarySensor(
@@ -110,6 +101,7 @@ class AtlasScientificOrpAutomationActiveBinarySensor(
         entry: ConfigEntry,
     ) -> None:
         super().__init__(coordinator)
+        self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_orp_automation_active"
         self._attr_name = "orp automation active"
 
@@ -125,13 +117,7 @@ class AtlasScientificOrpAutomationActiveBinarySensor(
 
     @property
     def device_info(self) -> DeviceInfo:
-        node = self.coordinator.data.get("nodes", {}).get(ROLE_CHEMISTRY, {})
-        return DeviceInfo(
-            identifiers={(DOMAIN, "node_chemistry")},
-            name=node.get("device_name", "chemistry"),
-            model=node.get("model"),
-            manufacturer="ESPHome",
-        )
+        return integration_device_info(self._entry)
 
 
 class AtlasScientificWaterLevelAutomationActiveBinarySensor(
@@ -147,6 +133,7 @@ class AtlasScientificWaterLevelAutomationActiveBinarySensor(
         entry: ConfigEntry,
     ) -> None:
         super().__init__(coordinator)
+        self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_water_level_automation_active"
         self._attr_name = "water level automation active"
 
@@ -166,13 +153,7 @@ class AtlasScientificWaterLevelAutomationActiveBinarySensor(
 
     @property
     def device_info(self) -> DeviceInfo:
-        node = self.coordinator.data.get("nodes", {}).get(ROLE_LEVEL, {})
-        return DeviceInfo(
-            identifiers={(DOMAIN, "node_level")},
-            name=node.get("device_name", "level"),
-            model=node.get("model"),
-            manufacturer="ESPHome",
-        )
+        return integration_device_info(self._entry)
 
 
 async def async_setup_entry(
