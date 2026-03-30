@@ -5,9 +5,8 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, patch
 
 from homeassistant.core import HomeAssistant
-from pytest_homeassistant_custom_component.common import MockConfigEntry
-
 from homeassistant.helpers import device_registry as dr
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.atlas_scientific_pool import async_setup_entry
 from custom_components.atlas_scientific_pool.const import DOMAIN
@@ -87,8 +86,10 @@ async def test_setup_entry_creates_coordinator(hass: HomeAssistant) -> None:
             "ph_max_threshold": 7.8,
             "orp_alert_threshold": 600.0,
             "notification_cooldown_minutes": 60,
-            "max_dose_ml": 100,
-            "cooldown_seconds": 60,
+            "max_chlorine_dose_ml": 150,
+            "max_acid_dose_ml": 100,
+            "chlorine_cooldown_seconds": 1800,
+            "acid_cooldown_seconds": 1800,
             "default_chlorine_dose_ml": 50,
             "default_acid_dose_ml": 50,
             "chlorine_volume_number": "volume_cl",

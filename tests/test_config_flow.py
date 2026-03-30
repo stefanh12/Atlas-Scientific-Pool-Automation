@@ -8,8 +8,11 @@ from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.atlas_scientific_pool.config_flow import _build_discovery_map
-from custom_components.atlas_scientific_pool.const import CONF_HEAT_PUMP_NODE, CONF_PUMP_NODE
-from custom_components.atlas_scientific_pool.const import DOMAIN
+from custom_components.atlas_scientific_pool.const import (
+    CONF_HEAT_PUMP_NODE,
+    CONF_PUMP_NODE,
+    DOMAIN,
+)
 
 
 async def test_user_flow_success(

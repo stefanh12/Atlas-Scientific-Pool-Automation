@@ -33,8 +33,10 @@ class SafetyConfig:
 
     controls_enabled: bool
     winter_mode: bool
-    max_dose_ml: float
-    cooldown_seconds: int
+    max_chlorine_dose_ml: float
+    max_acid_dose_ml: float
+    chlorine_cooldown_seconds: int
+    acid_cooldown_seconds: int
     default_chlorine_dose_ml: float
     default_acid_dose_ml: float
     enable_orp_automation: bool
@@ -51,7 +53,6 @@ class SafetyConfig:
     max_ppm_increase_per_dose: float
     acid_strength_percent: float
     max_ph_drop_per_dose: float
-    total_alkalinity_ppm: float
     enable_notifications: bool
     notify_service: str
     ph_sensor_object_id: str

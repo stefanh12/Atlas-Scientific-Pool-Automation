@@ -71,10 +71,59 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._fill_started_at: datetime | None = None
         self._last_alert_at: dict[str, datetime] = {}
         self._node_was_available: dict[str, bool] = {}
+        self._pre_chlorine_dose_ph: float | None = None
+        self._chlorine_was_running: bool = False
+        self._chlorine_ph_observations: list[tuple[datetime, float]] = []
 
     async def async_shutdown(self) -> None:
         """No-op: connections are managed by the ESPHome integration."""
         return
+
+    def _read_chemistry_ph(self, states: dict[str, Any]) -> float | None:
+        """Return current pH from chemistry states, or None if unreadable."""
+        try:
+            return float(states.get(self._safety.ph_sensor_object_id))  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return None
+
+    def _trim_ph_observations(self) -> None:
+        """Discard observations older than 24 hours."""
+        cutoff = datetime.now(tz=UTC) - timedelta(hours=24)
+        self._chlorine_ph_observations = [
+            (ts, delta) for ts, delta in self._chlorine_ph_observations if ts >= cutoff
+        ]
+
+    @property
+    def chlorine_ph_effect_24h(self) -> float | None:
+        """Rolling 24 h average pH change per chlorine dose (negative = lowers pH)."""
+        self._trim_ph_observations()
+        if not self._chlorine_ph_observations:
+            return None
+        return sum(d for _, d in self._chlorine_ph_observations) / len(self._chlorine_ph_observations)
+
+    def _track_chlorine_ph_effect(self, data: dict[str, Any]) -> None:
+        """Observe pH shift when a chlorine dose completes; maintain 24 h window."""
+        chemistry = data["nodes"].get(ROLE_CHEMISTRY, {})
+        if chemistry.get("available"):
+            states = chemistry.get("states", {})
+            currently_running = _as_bool(
+                states.get(self._command_map.chlorine_running_binary_sensor)
+            )
+            if self._chlorine_was_running and not currently_running:
+                post_ph = self._read_chemistry_ph(states)
+                if post_ph is not None and self._pre_chlorine_dose_ph is not None:
+                    delta = post_ph - self._pre_chlorine_dose_ph
+                    self._chlorine_ph_observations.append((datetime.now(tz=UTC), delta))
+                    _LOGGER.debug(
+                        "Chlorine dose pH effect: %.2f → %.2f (Δ%.3f)",
+                        self._pre_chlorine_dose_ph,
+                        post_ph,
+                        delta,
+                    )
+                self._pre_chlorine_dose_ph = None
+            self._chlorine_was_running = currently_running
+        self._trim_ph_observations()
+        data["chlorine_ph_effect_24h"] = self.chlorine_ph_effect_24h
 
     async def _async_update(self) -> dict[str, Any]:
         data: dict[str, Any] = {
@@ -109,6 +158,7 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 },
             }
 
+        self._track_chlorine_ph_effect(data)
         await self._async_run_orp_automation(data)
         await self._async_run_level_automation(data)
         await self._async_check_alerts(data)
@@ -382,6 +432,7 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return
 
         chemistry_client = self._clients[ROLE_CHEMISTRY]
+        self._pre_chlorine_dose_ph = self._read_chemistry_ph(chemistry.get("states", {}))
         await chemistry_client.set_number(
             self._command_map.chlorine_volume_number,
             self._chlorine_target_ml,
@@ -537,6 +588,13 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def async_dose_chlorine(self, volume_ml: float) -> None:
         """Apply chlorine dosing with safety checks."""
         await self._async_validate_dose(is_chlorine=True, volume_ml=volume_ml)
+        # Capture pH before dose for 24 h effect tracking.
+        chemistry_states: dict[str, Any] = (
+            self.data.get("nodes", {}).get(ROLE_CHEMISTRY, {}).get("states", {})
+            if self.data
+            else {}
+        )
+        self._pre_chlorine_dose_ph = self._read_chemistry_ph(chemistry_states)
         chemistry = self._clients[ROLE_CHEMISTRY]
         await chemistry.set_number(self._command_map.chlorine_volume_number, volume_ml)
         await chemistry.press_button(self._command_map.chlorine_dose_button)
@@ -597,24 +655,22 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return self._chlorine_pool_size_cap_ml()
 
     def _acid_pool_size_cap_ml(self) -> float:
-        """Return max acid dose in ml based on pH-drop settings and water chemistry."""
+        """Return max acid dose in ml based on pH-drop settings."""
         volume_l = self._safety.pool_volume_liters
         acid_strength = self._safety.acid_strength_percent
         max_ph_drop = self._safety.max_ph_drop_per_dose
-        alkalinity = self._safety.total_alkalinity_ppm
 
-        if volume_l <= 0 or acid_strength <= 0 or max_ph_drop <= 0 or alkalinity <= 0:
+        if volume_l <= 0 or acid_strength <= 0 or max_ph_drop <= 0:
             return 0.0
 
-        # Practical approximation for muriatic acid dosing from pool service calculators.
-        # 10k gal (~37,854 L), 31.45% acid, TA 100 ppm: ~26.5 fl oz for ~0.1 pH drop.
+        # Practical approximation for muriatic acid dosing (baseline: 100 ppm alkalinity).
+        # 10k gal (~37,854 L), 31.45% acid: ~783 ml for 0.1 pH drop at TA 100 ppm.
         base_ml_per_0_1_ph_at_ref = 783.0
         volume_factor = volume_l / 37854.0
         strength_factor = 31.45 / acid_strength
-        alkalinity_factor = alkalinity / 100.0
         ph_factor = max_ph_drop / 0.1
 
-        return base_ml_per_0_1_ph_at_ref * volume_factor * strength_factor * alkalinity_factor * ph_factor
+        return base_ml_per_0_1_ph_at_ref * volume_factor * strength_factor * ph_factor
 
     def acid_pool_size_cap_ml(self) -> float:
         """Public helper for current pool-size acid cap in ml."""
@@ -632,7 +688,7 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if volume_ml <= 0:
             raise DoseSafetyError("Dose must be greater than 0 ml")
 
-        effective_max = self._safety.max_dose_ml
+        effective_max = self._safety.max_chlorine_dose_ml if is_chlorine else self._safety.max_acid_dose_ml
         if is_chlorine:
             effective_max = min(effective_max, self._chlorine_pool_size_cap_ml())
         else:
@@ -661,6 +717,24 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
             last_action = self._cooldown.chlorine_dose_at
             action = "chlorine"
+
+            # Use 24 h rolling average to guard against pH drop below minimum.
+            ph_effect = self.chlorine_ph_effect_24h
+            if ph_effect is not None and ph_effect != 0.0:
+                ph_raw = state_source.get(
+                    self._safety.ph_sensor_object_id,
+                    self.state_value(ROLE_CHEMISTRY, self._safety.ph_sensor_object_id),
+                )
+                try:
+                    current_ph = float(ph_raw)  # type: ignore[arg-type]
+                    projected_ph = current_ph + ph_effect
+                    if projected_ph < self._safety.ph_min_threshold:
+                        raise DoseSafetyError(
+                            f"Chlorine dose would lower pH from {round(current_ph, 2)} to"
+                            f" {round(projected_ph, 2)}, below minimum {self._safety.ph_min_threshold}"
+                        )
+                except (TypeError, ValueError):
+                    pass  # pH not yet readable — allow the dose
         else:
             state_source = chemistry_states or {}
             chlorine_running_state = state_source.get(
@@ -684,9 +758,10 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if last_action is None:
             return
 
+        cooldown_s = self._safety.chlorine_cooldown_seconds if is_chlorine else self._safety.acid_cooldown_seconds
         elapsed = datetime.now(tz=UTC) - last_action
-        if elapsed < timedelta(seconds=self._safety.cooldown_seconds):
-            remaining = self._safety.cooldown_seconds - int(elapsed.total_seconds())
+        if elapsed < timedelta(seconds=cooldown_s):
+            remaining = cooldown_s - int(elapsed.total_seconds())
             raise DoseSafetyError(
                 f"{action.title()} cooldown active. Wait {max(remaining, 1)} seconds"
             )

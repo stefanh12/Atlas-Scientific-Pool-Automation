@@ -10,24 +10,24 @@ from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.helpers import selector
 
 from .const import (
+    CONF_ACID_COOLDOWN_SECONDS,
     CONF_ACID_DOSE_BUTTON,
     CONF_ACID_RUNNING_BINARY_SENSOR,
     CONF_ACID_STOP_BUTTON,
     CONF_ACID_STRENGTH_PERCENT,
     CONF_ACID_VOLUME_NUMBER,
     CONF_CHEMISTRY_NODE,
+    CONF_CHLORINE_COOLDOWN_SECONDS,
     CONF_CHLORINE_DOSE_BUTTON,
     CONF_CHLORINE_RUNNING_BINARY_SENSOR,
     CONF_CHLORINE_STOP_BUTTON,
     CONF_CHLORINE_STRENGTH_PERCENT,
     CONF_CHLORINE_VOLUME_NUMBER,
-    CONF_COOLDOWN_SECONDS,
     CONF_DEFAULT_ACID_DOSE_ML,
     CONF_DEFAULT_CHLORINE_DOSE_ML,
     CONF_DEFAULT_TARGET_ORP,
     CONF_DEFAULT_TARGET_WATER_LEVEL_PERCENT,
     CONF_ENABLE_CONTROLS,
-    CONF_WINTER_MODE,
     CONF_ENABLE_LEVEL_AUTOMATION,
     CONF_ENABLE_NOTIFICATIONS,
     CONF_ENABLE_ORP_AUTOMATION,
@@ -40,7 +40,8 @@ from .const import (
     CONF_LEVEL_HYSTERESIS_PERCENT,
     CONF_LEVEL_NODE,
     CONF_LEVEL_SENSOR_OBJECT_ID,
-    CONF_MAX_DOSE_ML,
+    CONF_MAX_ACID_DOSE_ML,
+    CONF_MAX_CHLORINE_DOSE_ML,
     CONF_MAX_FILL_RUNTIME_MINUTES,
     CONF_MAX_PH_DROP_PER_DOSE,
     CONF_MAX_PPM_INCREASE_PER_DOSE,
@@ -60,22 +61,22 @@ from .const import (
     CONF_PUMP_SPEED_LOW_SWITCH_OBJECT_ID,
     CONF_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID,
     CONF_SCAN_INTERVAL,
-    CONF_TOTAL_ALKALINITY_PPM,
+    CONF_WINTER_MODE,
+    DEFAULT_ACID_COOLDOWN_SECONDS,
     DEFAULT_ACID_DOSE_BUTTON,
     DEFAULT_ACID_DOSE_ML,
     DEFAULT_ACID_RUNNING_BINARY_SENSOR,
     DEFAULT_ACID_STOP_BUTTON,
     DEFAULT_ACID_STRENGTH_PERCENT,
     DEFAULT_ACID_VOLUME_NUMBER,
+    DEFAULT_CHLORINE_COOLDOWN_SECONDS,
     DEFAULT_CHLORINE_DOSE_BUTTON,
     DEFAULT_CHLORINE_DOSE_ML,
     DEFAULT_CHLORINE_RUNNING_BINARY_SENSOR,
     DEFAULT_CHLORINE_STOP_BUTTON,
     DEFAULT_CHLORINE_STRENGTH_PERCENT,
     DEFAULT_CHLORINE_VOLUME_NUMBER,
-    DEFAULT_COOLDOWN_SECONDS,
     DEFAULT_ENABLE_CONTROLS,
-    DEFAULT_WINTER_MODE,
     DEFAULT_ENABLE_LEVEL_AUTOMATION,
     DEFAULT_ENABLE_NOTIFICATIONS,
     DEFAULT_ENABLE_ORP_AUTOMATION,
@@ -86,7 +87,8 @@ from .const import (
     DEFAULT_FILL_STOP_BUTTON_OBJECT_ID,
     DEFAULT_LEVEL_HYSTERESIS_PERCENT,
     DEFAULT_LEVEL_SENSOR_OBJECT_ID,
-    DEFAULT_MAX_DOSE_ML,
+    DEFAULT_MAX_ACID_DOSE_ML,
+    DEFAULT_MAX_CHLORINE_DOSE_ML,
     DEFAULT_MAX_FILL_RUNTIME_MINUTES,
     DEFAULT_MAX_PH_DROP_PER_DOSE,
     DEFAULT_MAX_PPM_INCREASE_PER_DOSE,
@@ -106,7 +108,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_TARGET_ORP,
     DEFAULT_TARGET_WATER_LEVEL_PERCENT,
-    DEFAULT_TOTAL_ALKALINITY_PPM,
+    DEFAULT_WINTER_MODE,
     DOMAIN,
 )
 
@@ -227,16 +229,28 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
                 default=defaults.get(CONF_WINTER_MODE, DEFAULT_WINTER_MODE),
             ): bool,
             vol.Required(
-                CONF_MAX_DOSE_ML,
-                default=defaults.get(CONF_MAX_DOSE_ML, DEFAULT_MAX_DOSE_ML),
+                CONF_MAX_CHLORINE_DOSE_ML,
+                default=defaults.get(CONF_MAX_CHLORINE_DOSE_ML, DEFAULT_MAX_CHLORINE_DOSE_ML),
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=1, max=500, mode=selector.NumberSelectorMode.BOX)
             ),
             vol.Required(
-                CONF_COOLDOWN_SECONDS,
-                default=defaults.get(CONF_COOLDOWN_SECONDS, DEFAULT_COOLDOWN_SECONDS),
+                CONF_MAX_ACID_DOSE_ML,
+                default=defaults.get(CONF_MAX_ACID_DOSE_ML, DEFAULT_MAX_ACID_DOSE_ML),
             ): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, max=3600, mode=selector.NumberSelectorMode.BOX)
+                selector.NumberSelectorConfig(min=1, max=500, mode=selector.NumberSelectorMode.BOX)
+            ),
+            vol.Required(
+                CONF_CHLORINE_COOLDOWN_SECONDS,
+                default=defaults.get(CONF_CHLORINE_COOLDOWN_SECONDS, DEFAULT_CHLORINE_COOLDOWN_SECONDS),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, max=86400, mode=selector.NumberSelectorMode.BOX)
+            ),
+            vol.Required(
+                CONF_ACID_COOLDOWN_SECONDS,
+                default=defaults.get(CONF_ACID_COOLDOWN_SECONDS, DEFAULT_ACID_COOLDOWN_SECONDS),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, max=86400, mode=selector.NumberSelectorMode.BOX)
             ),
             vol.Required(
                 CONF_DEFAULT_CHLORINE_DOSE_ML,
@@ -373,15 +387,6 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
                 ),
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0.01, max=1, mode=selector.NumberSelectorMode.BOX)
-            ),
-            vol.Required(
-                CONF_TOTAL_ALKALINITY_PPM,
-                default=defaults.get(
-                    CONF_TOTAL_ALKALINITY_PPM,
-                    DEFAULT_TOTAL_ALKALINITY_PPM,
-                ),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=20, max=250, mode=selector.NumberSelectorMode.BOX)
             ),
             vol.Required(
                 CONF_ENABLE_NOTIFICATIONS,
@@ -598,8 +603,10 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
                         CONF_SCAN_INTERVAL: DEFAULT_SCAN_INTERVAL,
                         CONF_ENABLE_CONTROLS: DEFAULT_ENABLE_CONTROLS,
                         CONF_WINTER_MODE: DEFAULT_WINTER_MODE,
-                        CONF_MAX_DOSE_ML: DEFAULT_MAX_DOSE_ML,
-                        CONF_COOLDOWN_SECONDS: DEFAULT_COOLDOWN_SECONDS,
+                        CONF_MAX_CHLORINE_DOSE_ML: DEFAULT_MAX_CHLORINE_DOSE_ML,
+                        CONF_MAX_ACID_DOSE_ML: DEFAULT_MAX_ACID_DOSE_ML,
+                        CONF_CHLORINE_COOLDOWN_SECONDS: DEFAULT_CHLORINE_COOLDOWN_SECONDS,
+                        CONF_ACID_COOLDOWN_SECONDS: DEFAULT_ACID_COOLDOWN_SECONDS,
                         CONF_DEFAULT_CHLORINE_DOSE_ML: DEFAULT_CHLORINE_DOSE_ML,
                         CONF_DEFAULT_ACID_DOSE_ML: DEFAULT_ACID_DOSE_ML,
                         CONF_ENABLE_ORP_AUTOMATION: DEFAULT_ENABLE_ORP_AUTOMATION,
@@ -619,7 +626,6 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
                         CONF_MAX_PPM_INCREASE_PER_DOSE: DEFAULT_MAX_PPM_INCREASE_PER_DOSE,
                         CONF_ACID_STRENGTH_PERCENT: DEFAULT_ACID_STRENGTH_PERCENT,
                         CONF_MAX_PH_DROP_PER_DOSE: DEFAULT_MAX_PH_DROP_PER_DOSE,
-                        CONF_TOTAL_ALKALINITY_PPM: DEFAULT_TOTAL_ALKALINITY_PPM,
                         CONF_ENABLE_NOTIFICATIONS: DEFAULT_ENABLE_NOTIFICATIONS,
                         CONF_NOTIFY_SERVICE: DEFAULT_NOTIFY_SERVICE,
                         CONF_PH_SENSOR_OBJECT_ID: DEFAULT_PH_SENSOR_OBJECT_ID,

@@ -15,6 +15,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import (
     CONF_ENABLE_PUMP_SPEED_ABSTRACTION,
     CONF_EXPOSE_RAW_PUMP_SWITCHES,
+    CONF_WINTER_MODE,
     DEFAULT_ENABLE_PUMP_SPEED_ABSTRACTION,
     DEFAULT_EXPOSE_RAW_PUMP_SWITCHES,
     DEFAULT_WINTER_MODE,

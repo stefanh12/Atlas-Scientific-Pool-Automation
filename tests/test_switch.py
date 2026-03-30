@@ -7,9 +7,13 @@ from unittest.mock import AsyncMock, patch
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.atlas_scientific_pool.coordinator import AtlasScientificPoolCoordinator
+from custom_components.atlas_scientific_pool.coordinator import (
+    AtlasScientificPoolCoordinator,
+)
 from custom_components.atlas_scientific_pool.models import NodeCommandMap, SafetyConfig
-from custom_components.atlas_scientific_pool.switch import AtlasScientificWinterModeSwitch
+from custom_components.atlas_scientific_pool.switch import (
+    AtlasScientificWinterModeSwitch,
+)
 
 
 async def test_winter_switch_does_not_reload_entry(hass) -> None:
@@ -23,8 +27,10 @@ async def test_winter_switch_does_not_reload_entry(hass) -> None:
         safety=SafetyConfig(
             controls_enabled=True,
             winter_mode=False,
-            max_dose_ml=100,
-            cooldown_seconds=60,
+            max_chlorine_dose_ml=150,
+            max_acid_dose_ml=100,
+            chlorine_cooldown_seconds=1800,
+            acid_cooldown_seconds=1800,
             default_chlorine_dose_ml=50,
             default_acid_dose_ml=50,
             enable_orp_automation=False,
@@ -41,7 +47,6 @@ async def test_winter_switch_does_not_reload_entry(hass) -> None:
             max_ppm_increase_per_dose=0.3,
             acid_strength_percent=31.45,
             max_ph_drop_per_dose=0.1,
-            total_alkalinity_ppm=80,
             enable_notifications=False,
             notify_service="",
             ph_sensor_object_id="ph",

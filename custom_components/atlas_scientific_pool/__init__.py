@@ -12,24 +12,24 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 
 from .const import (
+    CONF_ACID_COOLDOWN_SECONDS,
     CONF_ACID_DOSE_BUTTON,
     CONF_ACID_RUNNING_BINARY_SENSOR,
     CONF_ACID_STOP_BUTTON,
     CONF_ACID_STRENGTH_PERCENT,
     CONF_ACID_VOLUME_NUMBER,
     CONF_CHEMISTRY_NODE,
+    CONF_CHLORINE_COOLDOWN_SECONDS,
     CONF_CHLORINE_DOSE_BUTTON,
     CONF_CHLORINE_RUNNING_BINARY_SENSOR,
     CONF_CHLORINE_STOP_BUTTON,
     CONF_CHLORINE_STRENGTH_PERCENT,
     CONF_CHLORINE_VOLUME_NUMBER,
-    CONF_COOLDOWN_SECONDS,
     CONF_DEFAULT_ACID_DOSE_ML,
     CONF_DEFAULT_CHLORINE_DOSE_ML,
     CONF_DEFAULT_TARGET_ORP,
     CONF_DEFAULT_TARGET_WATER_LEVEL_PERCENT,
     CONF_ENABLE_CONTROLS,
-    CONF_WINTER_MODE,
     CONF_ENABLE_LEVEL_AUTOMATION,
     CONF_ENABLE_NOTIFICATIONS,
     CONF_ENABLE_ORP_AUTOMATION,
@@ -40,7 +40,8 @@ from .const import (
     CONF_LEVEL_HYSTERESIS_PERCENT,
     CONF_LEVEL_NODE,
     CONF_LEVEL_SENSOR_OBJECT_ID,
-    CONF_MAX_DOSE_ML,
+    CONF_MAX_ACID_DOSE_ML,
+    CONF_MAX_CHLORINE_DOSE_ML,
     CONF_MAX_FILL_RUNTIME_MINUTES,
     CONF_MAX_PH_DROP_PER_DOSE,
     CONF_MAX_PPM_INCREASE_PER_DOSE,
@@ -60,14 +61,14 @@ from .const import (
     CONF_PUMP_SPEED_LOW_SWITCH_OBJECT_ID,
     CONF_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID,
     CONF_SCAN_INTERVAL,
-    CONF_TOTAL_ALKALINITY_PPM,
+    CONF_WINTER_MODE,
+    DEFAULT_ACID_COOLDOWN_SECONDS,
     DEFAULT_ACID_DOSE_ML,
     DEFAULT_ACID_STRENGTH_PERCENT,
+    DEFAULT_CHLORINE_COOLDOWN_SECONDS,
     DEFAULT_CHLORINE_DOSE_ML,
     DEFAULT_CHLORINE_STRENGTH_PERCENT,
-    DEFAULT_COOLDOWN_SECONDS,
     DEFAULT_ENABLE_CONTROLS,
-    DEFAULT_WINTER_MODE,
     DEFAULT_ENABLE_LEVEL_AUTOMATION,
     DEFAULT_ENABLE_NOTIFICATIONS,
     DEFAULT_ENABLE_ORP_AUTOMATION,
@@ -76,7 +77,8 @@ from .const import (
     DEFAULT_FILL_STOP_BUTTON_OBJECT_ID,
     DEFAULT_LEVEL_HYSTERESIS_PERCENT,
     DEFAULT_LEVEL_SENSOR_OBJECT_ID,
-    DEFAULT_MAX_DOSE_ML,
+    DEFAULT_MAX_ACID_DOSE_ML,
+    DEFAULT_MAX_CHLORINE_DOSE_ML,
     DEFAULT_MAX_FILL_RUNTIME_MINUTES,
     DEFAULT_MAX_PH_DROP_PER_DOSE,
     DEFAULT_MAX_PPM_INCREASE_PER_DOSE,
@@ -96,7 +98,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_TARGET_ORP,
     DEFAULT_TARGET_WATER_LEVEL_PERCENT,
-    DEFAULT_TOTAL_ALKALINITY_PPM,
+    DEFAULT_WINTER_MODE,
     DOMAIN,
     ROLE_CHEMISTRY,
     ROLE_HEAT_PUMP,
@@ -194,9 +196,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             winter_mode=bool(
                 options.get(CONF_WINTER_MODE, DEFAULT_WINTER_MODE)
             ),
-            max_dose_ml=float(options.get(CONF_MAX_DOSE_ML, DEFAULT_MAX_DOSE_ML)),
-            cooldown_seconds=int(
-                options.get(CONF_COOLDOWN_SECONDS, DEFAULT_COOLDOWN_SECONDS)
+            max_chlorine_dose_ml=float(options.get(CONF_MAX_CHLORINE_DOSE_ML, DEFAULT_MAX_CHLORINE_DOSE_ML)),
+            max_acid_dose_ml=float(options.get(CONF_MAX_ACID_DOSE_ML, DEFAULT_MAX_ACID_DOSE_ML)),
+            chlorine_cooldown_seconds=int(
+                options.get(CONF_CHLORINE_COOLDOWN_SECONDS, DEFAULT_CHLORINE_COOLDOWN_SECONDS)
+            ),
+            acid_cooldown_seconds=int(
+                options.get(CONF_ACID_COOLDOWN_SECONDS, DEFAULT_ACID_COOLDOWN_SECONDS)
             ),
             default_chlorine_dose_ml=float(
                 options.get(CONF_DEFAULT_CHLORINE_DOSE_ML, DEFAULT_CHLORINE_DOSE_ML)
@@ -265,12 +271,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 options.get(
                     CONF_MAX_PH_DROP_PER_DOSE,
                     DEFAULT_MAX_PH_DROP_PER_DOSE,
-                )
-            ),
-            total_alkalinity_ppm=float(
-                options.get(
-                    CONF_TOTAL_ALKALINITY_PPM,
-                    DEFAULT_TOTAL_ALKALINITY_PPM,
                 )
             ),
             enable_notifications=bool(

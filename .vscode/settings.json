@@ -28,6 +28,7 @@
         },
         "pushd": true,
         "python3.12": true,
-        "popd": true
+        "popd": true,
+        "ruff": true
     }
 }

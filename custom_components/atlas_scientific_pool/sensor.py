@@ -7,6 +7,7 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -229,7 +230,7 @@ class AtlasScientificChlorineNeed24hSensor(
 
         per_dose_ml = min(
             self.coordinator.chlorine_pool_size_cap_ml(),
-            self.coordinator.safety.max_dose_ml,
+            self.coordinator.safety.max_chlorine_dose_ml,
         )
         if per_dose_ml <= 0:
             return 0.0
@@ -286,7 +287,7 @@ class AtlasScientificAcidNeed24hSensor(
 
         per_dose_ml = min(
             self.coordinator.acid_pool_size_cap_ml(),
-            self.coordinator.safety.max_dose_ml,
+            self.coordinator.safety.max_acid_dose_ml,
         )
         if per_dose_ml <= 0:
             return 0.0
@@ -381,6 +382,42 @@ class AtlasScientificWaterLevelErrorSensor(
         return integration_device_info(self._entry)
 
 
+class AtlasScientificChlorinePHEffect24hSensor(
+    CoordinatorEntity[AtlasScientificPoolCoordinator], SensorEntity
+):
+    """Rolling 24-hour average pH change per chlorine dose (observed, diagnostic)."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self,
+        coordinator: AtlasScientificPoolCoordinator,
+        entry: ConfigEntry,
+    ) -> None:
+        super().__init__(coordinator)
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_chlorine_ph_effect_24h"
+        self._attr_name = "chlorine pH effect 24h"
+
+    @property
+    def native_value(self) -> float | None:
+        if not self.coordinator.data:
+            return None
+        value = self.coordinator.data.get("chlorine_ph_effect_24h")
+        if value is None:
+            return None
+        return round(float(value), 3)
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.node_available("chemistry")
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return integration_device_info(self._entry)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -409,5 +446,6 @@ async def async_setup_entry(
     entities.append(AtlasScientificAcidNeed24hSensor(coordinator, entry))
     entities.append(AtlasScientificWaterLevelAutomationStatusSensor(coordinator, entry))
     entities.append(AtlasScientificWaterLevelErrorSensor(coordinator, entry))
+    entities.append(AtlasScientificChlorinePHEffect24hSensor(coordinator, entry))
 
     async_add_entities(entities)

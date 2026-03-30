@@ -73,8 +73,11 @@ The integration automatically imports dynamic ESPHome entities from connected no
   - `orp error`
   - `chlorine safe dose cap`
   - `acid safe dose cap`
+  - `chlorine need 24h`
+  - `acid need 24h`
   - `water level automation status`
   - `water level error`
+  - `chlorine pH effect 24h` _(diagnostic)_
 
 ### Friendly pool-pump abstraction
 
@@ -99,18 +102,21 @@ All options are configurable via **Settings → Devices & Services → Atlas Sci
 
 ### Dosing safety
 
+Cooldown is split per chemical using separate settings: `chlorine_cooldown_seconds` and `acid_cooldown_seconds`.
+
 | Setting                     | Description                                                                                  | Default | Range       |
 | --------------------------- | -------------------------------------------------------------------------------------------- | ------- | ----------- |
-| `max_dose_ml`               | Hard upper limit for a single dose regardless of other caps (ml)                             | `100`   | 1–500       |
-| `cooldown_seconds`          | Minimum time between consecutive doses of the same chemical (seconds)                        | `60`    | 0–3600      |
+| `max_chlorine_dose_ml`      | Hard upper limit for a single chlorine dose regardless of other caps (ml)                    | `150`   | 1–500       |
+| `max_acid_dose_ml`          | Hard upper limit for a single acid dose regardless of other caps (ml)                        | `100`   | 1–500       |
+| `chlorine_cooldown_seconds` | Minimum time between consecutive chlorine doses (seconds)                                    | `1800`  | 0–86400     |
+| `acid_cooldown_seconds`     | Minimum time between consecutive acid doses (seconds)                                        | `1800`  | 0–86400     |
 | `default_chlorine_dose_ml`  | Pre-filled value for the **Chlorine dose target** number entity (ml)                         | `50`    | 1–500       |
-| `default_acid_dose_ml`      | Pre-filled value for the **Acid dose target** number entity (ml)                             | `50`    | 1–500       |
+| `default_acid_dose_ml`      | Pre-filled value for the **Acid dose target** number entity (ml)                             | `25`    | 1–500       |
 | `pool_volume_liters`        | Pool volume used to compute chemistry dose caps (litres)                                     | `50000` | 1000–500000 |
 | `chlorine_strength_percent` | Available chlorine concentration of your product, used to compute the pool-size dose cap (%) | `12.5`  | 1–20        |
 | `max_ppm_increase_per_dose` | Maximum allowed FC increase per dose used by the pool-size cap (ppm)                         | `0.3`   | 0.05–3      |
-| `acid_strength_percent`     | Acid concentration of your product, used to compute the pH-drop dose cap (%)                 | `31.45` | 1–50        |
+| `acid_strength_percent`     | Acid concentration of your product, used to compute the pH-drop dose cap (%)                 | `10`    | 1–50        |
 | `max_ph_drop_per_dose`      | Maximum allowed pH drop per dose used by the pool-size cap                                   | `0.1`   | 0.01–1      |
-| `total_alkalinity_ppm`      | Current total alkalinity, used in acid dose cap calculation (ppm)                            | `80`    | 20–250      |
 
 ### ORP automation
 
@@ -182,12 +188,25 @@ Every chlorine/acid dose path (manual and automated) is validated in this order:
 4. **pool pump running safeguard**
 5. chlorine/acid interlock (cannot dose one while the opposite pump runs)
 6. cooldown window
+7. **24-hour pH-effect guard** (chlorine only)
 
 ### Pool pump running safeguard
 
 If a pump node is configured, chlorine and acid dosing are blocked unless the configured pump power switch reports ON.
 
 This prevents chemical dosing without active circulation.
+
+### 24-hour chlorine pH-effect guard
+
+The integration observes the actual pH reading just before each chlorine dose starts and again when the pump stops. The difference is stored in a rolling 24-hour window.
+
+Before every subsequent chlorine dose, the average pH change from the window is used to project the post-dose pH:
+
+$$\text{projected pH} = \text{current pH} + \overline{\Delta\text{pH}_{24\text{h}}}$$
+
+If the projected pH would fall below `ph_min_threshold`, the dose is **blocked** with an error. This automatically compensates for chlorine products that lower pH (e.g. trichlor) without any manual calibration.
+
+No configuration is required — the window fills itself from real observations. Until at least one dose has completed, the guard is inactive so it never blocks the very first dose.
 
 ## Development
 

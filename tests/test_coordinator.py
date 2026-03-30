@@ -48,8 +48,10 @@ def coordinator(hass: HomeAssistant) -> AtlasScientificPoolCoordinator:
         safety=SafetyConfig(
             controls_enabled=True,
             winter_mode=False,
-            max_dose_ml=100,
-            cooldown_seconds=60,
+            max_chlorine_dose_ml=150,
+            max_acid_dose_ml=100,
+            chlorine_cooldown_seconds=1800,
+            acid_cooldown_seconds=1800,
             default_chlorine_dose_ml=50,
             default_acid_dose_ml=50,
             enable_orp_automation=True,
@@ -66,7 +68,6 @@ def coordinator(hass: HomeAssistant) -> AtlasScientificPoolCoordinator:
             max_ppm_increase_per_dose=0.3,
             acid_strength_percent=31.45,
             max_ph_drop_per_dose=0.1,
-            total_alkalinity_ppm=80,
             enable_notifications=True,
             notify_service="",
             ph_sensor_object_id="ph",
@@ -191,7 +192,6 @@ async def test_pool_size_cap_blocks_large_acid_dose(
     """Dose above pH-based acid cap should be blocked."""
     coordinator._safety.pool_volume_liters = 10000
     coordinator._safety.acid_strength_percent = 31.45
-    coordinator._safety.total_alkalinity_ppm = 100
     coordinator._safety.max_ph_drop_per_dose = 0.05
 
     with pytest.raises(DoseSafetyError):
@@ -442,3 +442,66 @@ async def test_winter_mode_blocks_automations(
 
     assert orp_data["automation"]["action"] == "winter_mode"
     assert level_data["water_level_automation"]["action"] == "winter_mode"
+
+
+async def test_chlorine_ph_effect_24h_averages_recent_observations(
+    coordinator: AtlasScientificPoolCoordinator,
+) -> None:
+    """24h window should average observed pH deltas from the last 24 hours."""
+    now = datetime.now(tz=UTC)
+    coordinator._chlorine_ph_observations = [
+        (now - timedelta(hours=1), -0.05),
+        (now - timedelta(hours=3), -0.10),
+    ]
+    assert coordinator.chlorine_ph_effect_24h == pytest.approx(-0.075)
+
+
+async def test_chlorine_ph_effect_24h_trims_old_observations(
+    coordinator: AtlasScientificPoolCoordinator,
+) -> None:
+    """Observations older than 24 h should be discarded when the window is queried."""
+    now = datetime.now(tz=UTC)
+    coordinator._chlorine_ph_observations = [
+        (now - timedelta(hours=1), -0.05),
+        (now - timedelta(hours=25), -0.20),  # older than 24 h — must be dropped
+    ]
+    # Only the -0.05 observation remains after trimming.
+    assert coordinator.chlorine_ph_effect_24h == pytest.approx(-0.05)
+    assert len(coordinator._chlorine_ph_observations) == 1
+
+
+async def test_chlorine_ph_effect_24h_is_none_when_no_observations(
+    coordinator: AtlasScientificPoolCoordinator,
+) -> None:
+    """Property should return None before any doses have been observed."""
+    assert coordinator.chlorine_ph_effect_24h is None
+
+
+async def test_chlorine_dose_blocked_by_observed_ph_effect(
+    coordinator: AtlasScientificPoolCoordinator,
+) -> None:
+    """Chlorine dose must be blocked when observed 24 h effect would push pH below minimum."""
+    coordinator.data["nodes"][ROLE_CHEMISTRY]["states"]["ph"] = 7.22
+    now = datetime.now(tz=UTC)
+    # Average of [-0.05, -0.10] = -0.075; 7.22 + (-0.075) = 7.145 < ph_min_threshold 7.2
+    coordinator._chlorine_ph_observations = [
+        (now - timedelta(hours=1), -0.05),
+        (now - timedelta(hours=2), -0.10),
+    ]
+    with pytest.raises(DoseSafetyError, match="pH"):
+        await coordinator.async_dose_chlorine(30)
+
+
+async def test_chlorine_dose_allowed_when_ph_effect_within_range(
+    coordinator: AtlasScientificPoolCoordinator,
+) -> None:
+    """Chlorine dose should proceed when projected pH stays above minimum."""
+    coordinator.data["nodes"][ROLE_CHEMISTRY]["states"]["ph"] = 7.4
+    now = datetime.now(tz=UTC)
+    # Average -0.05; projected pH = 7.35 > 7.2 minimum — allowed
+    coordinator._chlorine_ph_observations = [
+        (now - timedelta(hours=1), -0.05),
+    ]
+    chemistry_client: FakeClient = coordinator._clients[ROLE_CHEMISTRY]
+    await coordinator.async_dose_chlorine(30)
+    assert chemistry_client.button_calls == ["dose_chlorine"]
