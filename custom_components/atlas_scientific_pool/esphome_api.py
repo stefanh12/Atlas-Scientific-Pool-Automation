@@ -61,14 +61,41 @@ class ESPHomeNodeClient:
                     "aioesphomeapi is required for atlas_scientific_pool"
                 ) from err
 
-            api = APIClient(
-                address=self._host,
-                port=self._port,
-                noise_psk=self._noise_psk or None,
-            )
+            # aioesphomeapi has changed APIClient constructor signatures over time.
+            # Try known variants to keep this integration compatible across HA installs.
+            api: Any | None = None
+            constructor_error: TypeError | None = None
+            for factory in (
+                lambda: APIClient(
+                    address=self._host,
+                    port=self._port,
+                    noise_psk=self._noise_psk or None,
+                ),
+                lambda: APIClient(
+                    self._host,
+                    self._port,
+                    None,
+                    noise_psk=self._noise_psk or None,
+                ),
+                lambda: APIClient(self._host, self._port, None),
+            ):
+                try:
+                    api = factory()
+                    break
+                except TypeError as err:
+                    constructor_error = err
+
+            if api is None:
+                raise ESPHomeTransportError(
+                    "Incompatible aioesphomeapi APIClient constructor"
+                ) from constructor_error
 
             try:
-                await asyncio.wait_for(api.connect(login=True), timeout=self._timeout)
+                try:
+                    connect_coro = api.connect(login=True)
+                except TypeError:
+                    connect_coro = api.connect()
+                await asyncio.wait_for(connect_coro, timeout=self._timeout)
                 device_info = await asyncio.wait_for(
                     api.device_info(), timeout=self._timeout
                 )
