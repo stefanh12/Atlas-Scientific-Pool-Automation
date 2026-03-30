@@ -85,6 +85,7 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._last_fill_command: str | None = None
         self._fill_started_at: datetime | None = None
         self._last_alert_at: dict[str, datetime] = {}
+        self._node_was_available: dict[str, bool] = {}
 
     async def async_shutdown(self) -> None:
         """Close all node connections."""
@@ -101,6 +102,9 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for role, client in self._clients.items():
             try:
                 snapshot = await client.refresh()
+                if not self._node_was_available.get(role, True):
+                    _LOGGER.info("Node '%s' is back online", role)
+                self._node_was_available[role] = True
                 data["nodes"][role] = {
                     "available": True,
                     "device_name": snapshot.device_name,
@@ -121,7 +125,11 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     },
                 }
             except ESPHomeTransportError as err:
-                _LOGGER.warning("Node '%s' update failed: %s", role, err)
+                if self._node_was_available.get(role, True):
+                    _LOGGER.warning("Node '%s' is not reachable: %s", role, err)
+                else:
+                    _LOGGER.debug("Node '%s' still not reachable: %s", role, err)
+                self._node_was_available[role] = False
                 data["nodes"][role] = {
                     "available": False,
                     "error": str(err),

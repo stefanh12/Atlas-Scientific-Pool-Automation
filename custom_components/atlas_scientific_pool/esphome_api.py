@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Any
+
+_RECONNECT_BACKOFF_SECONDS = 60
 
 from homeassistant.exceptions import HomeAssistantError
 
@@ -46,12 +49,20 @@ class ESPHomeNodeClient:
         self._unsubscribe_state: Any | None = None
         self._snapshot = NodeSnapshot(device_name=host, model=None, mac_address=None)
         self._lock = asyncio.Lock()
+        self._next_retry_at: float | None = None
 
     async def connect(self) -> None:
         """Connect and bootstrap metadata/state subscription."""
         async with self._lock:
             if self._api is not None:
                 return
+
+            now = time.monotonic()
+            if self._next_retry_at is not None and now < self._next_retry_at:
+                raise ESPHomeTransportError(
+                    f"ESPHome node {self._host}:{self._port} is not reachable"
+                    f" (retry in {self._next_retry_at - now:.0f}s)"
+                )
 
             try:
                 from aioesphomeapi import APIClient
@@ -103,6 +114,7 @@ class ESPHomeNodeClient:
                     api.list_entities_services(), timeout=self._timeout
                 )
             except (TimeoutError, APIConnectionError) as err:
+                self._next_retry_at = time.monotonic() + _RECONNECT_BACKOFF_SECONDS
                 raise ESPHomeTransportError(
                     f"Could not connect to ESPHome node {self._host}:{self._port}"
                 ) from err
@@ -121,6 +133,7 @@ class ESPHomeNodeClient:
 
             unsubscribe = api.subscribe_states(_state_callback)
 
+            self._next_retry_at = None
             self._api = api
             self._unsubscribe_state = unsubscribe
             self._snapshot = NodeSnapshot(
