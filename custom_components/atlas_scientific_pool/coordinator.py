@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -16,11 +17,24 @@ from .const import (
     ALERT_PH_LOW,
     ROLE_CHEMISTRY,
     ROLE_LEVEL,
+    ROLE_PRESSURE,
     ROLE_PUMP,
 )
 from .models import CooldownState, NodeCommandMap, SafetyConfig
 
 _LOGGER = logging.getLogger(__name__)
+
+DIAGNOSTIC_TEST_KEYS: tuple[str, ...] = (
+    "chemistry_node",
+    "pressure_node",
+    "level_node",
+    "chlorine_dose_path",
+    "acid_dose_path",
+    "orp_automation",
+    "level_automation",
+    "notifications",
+    "pump_controls",
+)
 
 
 class DoseSafetyError(HomeAssistantError):
@@ -124,6 +138,269 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._chlorine_was_running = currently_running
         self._trim_ph_observations()
         data["chlorine_ph_effect_24h"] = self.chlorine_ph_effect_24h
+
+    def _diagnostic_has_object(self, role: str, object_id: str, list_key: str) -> bool:
+        """Return whether an object_id is present in the latest node snapshot."""
+        if not self.data:
+            return False
+        if not object_id:
+            return False
+        node = self.data.get("nodes", {}).get(role, {})
+        return object_id in node.get(list_key, [])
+
+    def _diagnostic_has_state(self, role: str, object_id: str) -> bool:
+        """Return whether an object_id has a state in the latest node snapshot."""
+        if not self.data:
+            return False
+        if not object_id:
+            return False
+        node = self.data.get("nodes", {}).get(role, {})
+        return object_id in node.get("states", {})
+
+    def _diagnostic_state_value(self, role: str, object_id: str) -> Any | None:
+        """Best-effort state lookup using client live state first, then coordinator cache."""
+        client = self._clients.get(role)
+        if client is not None and hasattr(client, "state_value"):
+            try:
+                value = client.state_value(object_id)
+                if value is not None:
+                    return value
+            except Exception:
+                pass
+        return self.state_value(role, object_id)
+
+    async def _async_wait_for_bool_state(
+        self,
+        *,
+        role: str,
+        object_id: str,
+        expected: bool,
+        timeout_seconds: int,
+    ) -> bool:
+        """Wait until a state-bearing object resolves to the expected bool value."""
+        if not object_id:
+            return False
+        for _ in range(timeout_seconds):
+            value = self._diagnostic_state_value(role, object_id)
+            if _as_bool(value) is expected:
+                return True
+            await asyncio.sleep(1)
+        return False
+
+    async def async_run_diagnostics_tests(self) -> None:
+        """Run active diagnostics checks and publish per-test outcomes."""
+        if not self.data:
+            await self.async_request_refresh()
+        if not self.data:
+            raise HomeAssistantError("No coordinator data available for diagnostics tests")
+
+        results: dict[str, dict[str, str]] = {}
+
+        def add_result(key: str, status: str, detail: str) -> None:
+            results[key] = {"status": status, "detail": detail}
+
+        controls_active = self._safety.controls_enabled and not self._safety.winter_mode
+
+        async def run_chemistry_dose_test(*, is_chlorine: bool) -> tuple[str, str]:
+            action = "chlorine" if is_chlorine else "acid"
+            if not controls_active:
+                return "skipped", "Controls are disabled or winter mode is enabled"
+            if not self.node_available(ROLE_CHEMISTRY):
+                return "fail", "Chemistry node is unavailable"
+
+            if is_chlorine:
+                volume_number = self._command_map.chlorine_volume_number
+                dose_button = self._command_map.chlorine_dose_button
+                stop_button = self._command_map.chlorine_stop_button
+                running_sensor = self._command_map.chlorine_running_binary_sensor
+            else:
+                volume_number = self._command_map.acid_volume_number
+                dose_button = self._command_map.acid_dose_button
+                stop_button = self._command_map.acid_stop_button
+                running_sensor = self._command_map.acid_running_binary_sensor
+
+            missing: list[str] = []
+            if not self._diagnostic_has_object(ROLE_CHEMISTRY, volume_number, "number_object_ids"):
+                missing.append(volume_number)
+            if not self._diagnostic_has_object(ROLE_CHEMISTRY, dose_button, "button_object_ids"):
+                missing.append(dose_button)
+            if not self._diagnostic_has_object(ROLE_CHEMISTRY, stop_button, "button_object_ids"):
+                missing.append(stop_button)
+            if not self._diagnostic_has_state(ROLE_CHEMISTRY, running_sensor):
+                missing.append(running_sensor)
+            if missing:
+                return "fail", f"Missing chemistry objects: {', '.join(missing)}"
+
+            chemistry_client = self._clients[ROLE_CHEMISTRY]
+            await chemistry_client.set_number(volume_number, 1.0)
+            await chemistry_client.press_button(dose_button)
+
+            started = await self._async_wait_for_bool_state(
+                role=ROLE_CHEMISTRY,
+                object_id=running_sensor,
+                expected=True,
+                timeout_seconds=20,
+            )
+            if not started:
+                return "fail", f"{action.title()} pump did not report running after 1 ml test dose"
+
+            await chemistry_client.press_button(stop_button)
+            stopped = await self._async_wait_for_bool_state(
+                role=ROLE_CHEMISTRY,
+                object_id=running_sensor,
+                expected=False,
+                timeout_seconds=20,
+            )
+            if not stopped:
+                return "fail", f"{action.title()} pump did not report stopped after stop command"
+
+            return "pass", f"1 ml {action} test dose started and stopped successfully"
+
+        async def run_level_fill_test() -> tuple[str, str]:
+            if not self._safety.enable_level_automation:
+                return "skipped", "Water-level automation is disabled"
+            if not self.node_available(ROLE_LEVEL):
+                return "fail", "Level node is unavailable"
+
+            fill_start = self._command_map.fill_start_button_object_id
+            fill_stop = self._command_map.fill_stop_button_object_id
+            fill_running = self._command_map.fill_running_binary_sensor_object_id
+            missing: list[str] = []
+            if not fill_start:
+                missing.append("fill_start_button_object_id")
+            elif not self._diagnostic_has_object(ROLE_LEVEL, fill_start, "button_object_ids"):
+                missing.append(fill_start)
+            if not fill_stop:
+                missing.append("fill_stop_button_object_id")
+            elif not self._diagnostic_has_object(ROLE_LEVEL, fill_stop, "button_object_ids"):
+                missing.append(fill_stop)
+            if not fill_running:
+                missing.append("fill_running_binary_sensor_object_id")
+            elif not self._diagnostic_has_state(ROLE_LEVEL, fill_running):
+                missing.append(fill_running)
+            if missing:
+                return "fail", f"Missing level objects: {', '.join(missing)}"
+
+            level_client = self._clients[ROLE_LEVEL]
+            await level_client.press_button(fill_start)
+            started = await self._async_wait_for_bool_state(
+                role=ROLE_LEVEL,
+                object_id=fill_running,
+                expected=True,
+                timeout_seconds=20,
+            )
+            if not started:
+                return "fail", "Fill did not report running after start command"
+
+            await asyncio.sleep(10)
+
+            await level_client.press_button(fill_stop)
+            stopped = await self._async_wait_for_bool_state(
+                role=ROLE_LEVEL,
+                object_id=fill_running,
+                expected=False,
+                timeout_seconds=20,
+            )
+            if not stopped:
+                return "fail", "Fill did not report stopped after stop command"
+
+            return "pass", "Fill ran for 10 seconds and then stopped successfully"
+
+        async def run_orp_automation_test() -> tuple[str, str]:
+            if not self._safety.enable_orp_automation:
+                return "skipped", "ORP automation is disabled"
+            if not controls_active:
+                return "skipped", "Controls are disabled or winter mode is enabled"
+            if not self.node_available(ROLE_CHEMISTRY):
+                return "fail", "Chemistry node is unavailable"
+            if not self._diagnostic_has_state(ROLE_CHEMISTRY, self._safety.orp_sensor_object_id):
+                return "fail", f"Missing ORP sensor '{self._safety.orp_sensor_object_id}'"
+            return "pass", "ORP automation prerequisites are present"
+
+        async def run_notifications_test() -> tuple[str, str]:
+            if not self._safety.enable_notifications:
+                return "skipped", "Notifications are disabled"
+            if not self.node_available(ROLE_CHEMISTRY):
+                return "fail", "Chemistry node is unavailable"
+            if not self._diagnostic_has_state(ROLE_CHEMISTRY, self._safety.orp_sensor_object_id):
+                return "fail", f"Missing ORP sensor '{self._safety.orp_sensor_object_id}'"
+            if not self._diagnostic_has_state(ROLE_CHEMISTRY, self._safety.ph_sensor_object_id):
+                return "fail", f"Missing pH sensor '{self._safety.ph_sensor_object_id}'"
+
+            service_full = self._safety.notify_service.strip()
+            if service_full:
+                if "." in service_full:
+                    domain, service = service_full.split(".", 1)
+                else:
+                    domain, service = "notify", service_full
+                if self.hass.services.has_service(domain, service):
+                    return "pass", f"Notify service '{domain}.{service}' is available"
+                return "fail", f"Notify service '{domain}.{service}' not found"
+            return "pass", "Persistent notification path is available"
+
+        async def run_pump_controls_test() -> tuple[str, str]:
+            if ROLE_PUMP not in self._clients:
+                return "skipped", "Pump node is not configured"
+            if not controls_active:
+                return "skipped", "Controls are disabled or winter mode is enabled"
+            if not self.node_available(ROLE_PUMP):
+                return "fail", "Pump node is unavailable"
+
+            missing: list[str] = []
+            for object_id in (
+                self._command_map.pump_power_switch_object_id,
+                self._command_map.pump_speed_low_switch_object_id,
+                self._command_map.pump_speed_medium_switch_object_id,
+                self._command_map.pump_speed_high_switch_object_id,
+            ):
+                if object_id and not self._diagnostic_has_object(ROLE_PUMP, object_id, "switch_object_ids"):
+                    missing.append(object_id)
+            if missing:
+                return "fail", f"Missing pump switches: {', '.join(missing)}"
+            return "pass", "Pump control entities are present"
+
+        async def run_required_node_test(role: str) -> tuple[str, str]:
+            if self.node_available(role):
+                return "pass", "Node is reachable"
+            return "fail", "Node is unavailable"
+
+        test_runners: dict[str, Any] = {
+            "chemistry_node": lambda: run_required_node_test(ROLE_CHEMISTRY),
+            "pressure_node": lambda: run_required_node_test(ROLE_PRESSURE),
+            "level_node": lambda: run_required_node_test(ROLE_LEVEL),
+            "chlorine_dose_path": lambda: run_chemistry_dose_test(is_chlorine=True),
+            "acid_dose_path": lambda: run_chemistry_dose_test(is_chlorine=False),
+            "orp_automation": run_orp_automation_test,
+            "level_automation": run_level_fill_test,
+            "notifications": run_notifications_test,
+            "pump_controls": run_pump_controls_test,
+        }
+
+        for index, key in enumerate(DIAGNOSTIC_TEST_KEYS):
+            try:
+                status, detail = await test_runners[key]()
+            except Exception as err:
+                status, detail = "fail", f"Unhandled diagnostics error: {err}"
+            add_result(key, status, detail)
+            if index < len(DIAGNOSTIC_TEST_KEYS) - 1:
+                await asyncio.sleep(10)
+
+        counts = {
+            "pass": sum(1 for value in results.values() if value["status"] == "pass"),
+            "fail": sum(1 for value in results.values() if value["status"] == "fail"),
+            "skipped": sum(1 for value in results.values() if value["status"] == "skipped"),
+        }
+
+        updated_data = dict(self.data)
+        updated_data["diagnostics_tests"] = {
+            "ran_at": datetime.now(tz=UTC).isoformat(),
+            "results": results,
+            "summary": {
+                **counts,
+                "overall": "fail" if counts["fail"] > 0 else "pass",
+            },
+        }
+        self.async_set_updated_data(updated_data)
 
     async def _async_update(self) -> dict[str, Any]:
         data: dict[str, Any] = {

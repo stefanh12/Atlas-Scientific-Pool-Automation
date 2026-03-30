@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
@@ -14,7 +15,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, NODE_ROLES
-from .coordinator import AtlasScientificPoolCoordinator
+from .coordinator import DIAGNOSTIC_TEST_KEYS, AtlasScientificPoolCoordinator
 from .device import integration_device_info
 
 
@@ -418,6 +419,142 @@ class AtlasScientificChlorinePHEffect24hSensor(
         return integration_device_info(self._entry)
 
 
+class AtlasScientificDiagnosticsTestStatusSensor(
+    CoordinatorEntity[AtlasScientificPoolCoordinator], SensorEntity
+):
+    """Diagnostic sensor exposing pass/fail/skipped status for one integration test."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self,
+        coordinator: AtlasScientificPoolCoordinator,
+        entry: ConfigEntry,
+        test_key: str,
+    ) -> None:
+        super().__init__(coordinator)
+        self._entry = entry
+        self._test_key = test_key
+        self._attr_unique_id = f"{entry.entry_id}_diagnostics_{test_key}"
+        self._attr_name = f"diagnostics {test_key.replace('_', ' ')}"
+
+    @property
+    def native_value(self) -> str:
+        diagnostics = self.coordinator.data.get("diagnostics_tests", {}) if self.coordinator.data else {}
+        results = diagnostics.get("results", {})
+        result = results.get(self._test_key, {})
+        return str(result.get("status", "not_run"))
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        diagnostics = self.coordinator.data.get("diagnostics_tests", {}) if self.coordinator.data else {}
+        results = diagnostics.get("results", {})
+        result = results.get(self._test_key, {})
+        detail = result.get("detail", "Test has not been run yet")
+        summary = diagnostics.get("summary", {})
+        return {
+            "detail": detail,
+            "test_key": self._test_key,
+            "ran_at": diagnostics.get("ran_at"),
+            "summary_pass": summary.get("pass"),
+            "summary_fail": summary.get("fail"),
+            "summary_skipped": summary.get("skipped"),
+            "summary_overall": summary.get("overall"),
+        }
+
+    @property
+    def available(self) -> bool:
+        return True
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return integration_device_info(self._entry)
+
+
+class AtlasScientificDiagnosticsSummarySensor(
+    CoordinatorEntity[AtlasScientificPoolCoordinator], SensorEntity
+):
+    """Diagnostic summary sensor exposing overall diagnostics result and counters."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self,
+        coordinator: AtlasScientificPoolCoordinator,
+        entry: ConfigEntry,
+    ) -> None:
+        super().__init__(coordinator)
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_diagnostics_summary"
+        self._attr_name = "diagnostics summary"
+
+    @property
+    def native_value(self) -> str:
+        diagnostics = self.coordinator.data.get("diagnostics_tests", {}) if self.coordinator.data else {}
+        summary = diagnostics.get("summary", {})
+        return str(summary.get("overall", "not_run"))
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        diagnostics = self.coordinator.data.get("diagnostics_tests", {}) if self.coordinator.data else {}
+        summary = diagnostics.get("summary", {})
+        return {
+            "ran_at": diagnostics.get("ran_at"),
+            "pass": summary.get("pass", 0),
+            "fail": summary.get("fail", 0),
+            "skipped": summary.get("skipped", 0),
+        }
+
+    @property
+    def available(self) -> bool:
+        return True
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return integration_device_info(self._entry)
+
+
+class AtlasScientificDiagnosticsLastRunSensor(
+    CoordinatorEntity[AtlasScientificPoolCoordinator], SensorEntity
+):
+    """Diagnostic sensor exposing when diagnostics tests last ran."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    def __init__(
+        self,
+        coordinator: AtlasScientificPoolCoordinator,
+        entry: ConfigEntry,
+    ) -> None:
+        super().__init__(coordinator)
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_diagnostics_last_run"
+        self._attr_name = "diagnostics last run"
+
+    @property
+    def native_value(self) -> datetime | None:
+        diagnostics = self.coordinator.data.get("diagnostics_tests", {}) if self.coordinator.data else {}
+        ran_at_raw = diagnostics.get("ran_at")
+        if not isinstance(ran_at_raw, str) or not ran_at_raw:
+            return None
+        try:
+            return datetime.fromisoformat(ran_at_raw)
+        except ValueError:
+            return None
+
+    @property
+    def available(self) -> bool:
+        return True
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return integration_device_info(self._entry)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -447,5 +584,9 @@ async def async_setup_entry(
     entities.append(AtlasScientificWaterLevelAutomationStatusSensor(coordinator, entry))
     entities.append(AtlasScientificWaterLevelErrorSensor(coordinator, entry))
     entities.append(AtlasScientificChlorinePHEffect24hSensor(coordinator, entry))
+    entities.append(AtlasScientificDiagnosticsSummarySensor(coordinator, entry))
+    entities.append(AtlasScientificDiagnosticsLastRunSensor(coordinator, entry))
+    for test_key in DIAGNOSTIC_TEST_KEYS:
+        entities.append(AtlasScientificDiagnosticsTestStatusSensor(coordinator, entry, test_key))
 
     async_add_entities(entities)

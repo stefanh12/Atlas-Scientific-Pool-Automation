@@ -63,6 +63,7 @@ The integration automatically imports dynamic ESPHome entities from connected no
   - `dose acid`
   - `stop chlorine pump`
   - `stop acid pump`
+  - `run diagnostics tests` _(diagnostic)_
 - Binary sensors:
   - `orp automation active`
   - `water level automation active`
@@ -78,6 +79,31 @@ The integration automatically imports dynamic ESPHome entities from connected no
   - `water level automation status`
   - `water level error`
   - `chlorine pH effect 24h` _(diagnostic)_
+  - `diagnostics summary` _(diagnostic)_
+  - `diagnostics last run` _(diagnostic timestamp)_
+  - `diagnostics <test name>` sensors per test key _(diagnostic)_
+
+### Diagnostics self-test
+
+Use the **Run diagnostics tests** button to execute an end-to-end health check after setup or maintenance.
+
+The diagnostics runner executes checks in sequence and publishes status for each test (`pass`, `fail`, `skipped`) to dedicated diagnostic sensors.
+
+Active runtime tests:
+
+- chlorine dose path: sets `1 ml`, starts dose, verifies running state, then stops and verifies stopped
+- acid dose path: sets `1 ml`, starts dose, verifies running state, then stops and verifies stopped
+- level automation path: starts fill, waits `10` seconds, stops fill, verifies state transitions
+
+Timing behavior:
+
+- waits `10` seconds between each diagnostics test
+- tests that are disabled by configuration are reported as `skipped` and are not executed
+
+Summary sensors:
+
+- `diagnostics summary` reports overall status and pass/fail/skipped counts
+- `diagnostics last run` reports the timestamp of the most recent diagnostics run
 
 ### Friendly pool-pump abstraction
 

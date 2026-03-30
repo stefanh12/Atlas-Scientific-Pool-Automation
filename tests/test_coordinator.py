@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -30,12 +31,28 @@ class FakeClient:
     def __init__(self) -> None:
         self.number_calls: list[tuple[str, float]] = []
         self.button_calls: list[str] = []
+        self.states: dict[str, Any] = {}
 
     async def set_number(self, object_id: str, value: float) -> None:
         self.number_calls.append((object_id, value))
 
     async def press_button(self, object_id: str) -> None:
         self.button_calls.append(object_id)
+        if object_id == "dose_chlorine":
+            self.states["pump_cl_state"] = True
+        elif object_id == "stop_chlorine":
+            self.states["pump_cl_state"] = False
+        elif object_id == "dose_acid":
+            self.states["pump_acid_state"] = True
+        elif object_id == "stop_acid":
+            self.states["pump_acid_state"] = False
+        elif object_id == "fill_start":
+            self.states["fill_running"] = True
+        elif object_id == "fill_stop":
+            self.states["fill_running"] = False
+
+    def state_value(self, object_id: str) -> Any | None:
+        return self.states.get(object_id)
 
 
 @pytest.fixture
@@ -99,18 +116,41 @@ def coordinator(hass: HomeAssistant) -> AtlasScientificPoolCoordinator:
         ROLE_PRESSURE: FakeClient(),
         ROLE_LEVEL: FakeClient(),
     }
+    coord._clients[ROLE_CHEMISTRY].states = {
+        "pump_cl_state": False,
+        "pump_acid_state": False,
+        "orp": 650,
+        "ph": 7.4,
+    }
+    coord._clients[ROLE_LEVEL].states = {
+        "pool_level": 80,
+        "fill_running": False,
+    }
     coord.data = {
         "nodes": {
             ROLE_CHEMISTRY: {
                 "available": True,
+                "number_object_ids": ["volume_cl", "volume_acid"],
+                "button_object_ids": ["dose_chlorine", "dose_acid", "stop_chlorine", "stop_acid"],
+                "switch_object_ids": [],
                 "states": {
                     "pump_cl_state": False,
                     "pump_acid_state": False,
                     "orp": 650,
+                    "ph": 7.4,
                 },
             },
-            ROLE_PRESSURE: {"available": True, "states": {}},
-            ROLE_LEVEL: {"available": True, "states": {}},
+            ROLE_PRESSURE: {"available": True, "number_object_ids": [], "button_object_ids": [], "switch_object_ids": [], "states": {}},
+            ROLE_LEVEL: {
+                "available": True,
+                "number_object_ids": [],
+                "button_object_ids": ["fill_start", "fill_stop"],
+                "switch_object_ids": [],
+                "states": {
+                    "pool_level": 80,
+                    "fill_running": False,
+                },
+            },
         }
     }
     coord.async_request_refresh = AsyncMock()
@@ -505,3 +545,69 @@ async def test_chlorine_dose_allowed_when_ph_effect_within_range(
     chemistry_client: FakeClient = coordinator._clients[ROLE_CHEMISTRY]
     await coordinator.async_dose_chlorine(30)
     assert chemistry_client.button_calls == ["dose_chlorine"]
+
+
+async def test_diagnostics_run_reports_pass_for_enabled_functions(
+    coordinator: AtlasScientificPoolCoordinator,
+) -> None:
+    """Diagnostics run should report pass when all enabled function prerequisites are present."""
+    with patch(
+        "custom_components.atlas_scientific_pool.coordinator.asyncio.sleep",
+        new=AsyncMock(),
+    ):
+        await coordinator.async_run_diagnostics_tests()
+
+    diagnostics = coordinator.data.get("diagnostics_tests", {})
+    results = diagnostics.get("results", {})
+
+    assert results["chemistry_node"]["status"] == "pass"
+    assert results["pressure_node"]["status"] == "pass"
+    assert results["level_node"]["status"] == "pass"
+    assert results["chlorine_dose_path"]["status"] == "pass"
+    assert results["acid_dose_path"]["status"] == "pass"
+    assert results["orp_automation"]["status"] == "pass"
+    assert results["level_automation"]["status"] == "pass"
+    assert results["notifications"]["status"] == "pass"
+    assert results["pump_controls"]["status"] == "skipped"
+    assert diagnostics["summary"]["overall"] == "pass"
+
+
+async def test_diagnostics_skips_disabled_functions(
+    coordinator: AtlasScientificPoolCoordinator,
+) -> None:
+    """Disabled functions must be marked as skipped instead of failing."""
+    coordinator._safety.controls_enabled = False
+    coordinator._safety.enable_orp_automation = False
+    coordinator._safety.enable_level_automation = False
+    coordinator._safety.enable_notifications = False
+
+    with patch(
+        "custom_components.atlas_scientific_pool.coordinator.asyncio.sleep",
+        new=AsyncMock(),
+    ):
+        await coordinator.async_run_diagnostics_tests()
+
+    results = coordinator.data["diagnostics_tests"]["results"]
+    assert results["chlorine_dose_path"]["status"] == "skipped"
+    assert results["acid_dose_path"]["status"] == "skipped"
+    assert results["orp_automation"]["status"] == "skipped"
+    assert results["level_automation"]["status"] == "skipped"
+    assert results["notifications"]["status"] == "skipped"
+
+
+async def test_diagnostics_reports_fail_for_missing_entities(
+    coordinator: AtlasScientificPoolCoordinator,
+) -> None:
+    """Missing required entities for an enabled function should fail that test."""
+    coordinator.data["nodes"][ROLE_CHEMISTRY]["button_object_ids"] = ["dose_acid", "stop_chlorine", "stop_acid"]
+
+    with patch(
+        "custom_components.atlas_scientific_pool.coordinator.asyncio.sleep",
+        new=AsyncMock(),
+    ):
+        await coordinator.async_run_diagnostics_tests()
+
+    results = coordinator.data["diagnostics_tests"]["results"]
+    assert results["chlorine_dose_path"]["status"] == "fail"
+    assert "dose_chlorine" in results["chlorine_dose_path"]["detail"]
+    assert coordinator.data["diagnostics_tests"]["summary"]["overall"] == "fail"
