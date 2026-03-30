@@ -45,7 +45,8 @@ class HANodeClient:
                 continue
             state = self._hass.states.get(entry.entity_id)
             if state is not None:
-                return state.state != "unavailable"
+                if state.state != "unavailable":
+                    return True
         return False
 
     # ------------------------------------------------------------------

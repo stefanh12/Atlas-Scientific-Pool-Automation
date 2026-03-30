@@ -15,7 +15,6 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import (
     CONF_ENABLE_PUMP_SPEED_ABSTRACTION,
     CONF_EXPOSE_RAW_PUMP_SWITCHES,
-    CONF_WINTER_MODE,
     DEFAULT_ENABLE_PUMP_SPEED_ABSTRACTION,
     DEFAULT_EXPOSE_RAW_PUMP_SWITCHES,
     DEFAULT_WINTER_MODE,
@@ -158,17 +157,9 @@ class AtlasScientificWinterModeSwitch(
         return integration_device_info(self._entry)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        self.hass.config_entries.async_update_entry(
-            self._entry,
-            options={**self._entry.options, CONF_WINTER_MODE: True},
-        )
         await self.coordinator.async_set_winter_mode(True)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        self.hass.config_entries.async_update_entry(
-            self._entry,
-            options={**self._entry.options, CONF_WINTER_MODE: False},
-        )
         await self.coordinator.async_set_winter_mode(False)
 
 
