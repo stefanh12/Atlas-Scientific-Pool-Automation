@@ -85,49 +85,92 @@ When a pump node is configured and abstraction is enabled:
 
 These map to configured relay object IDs and provide a safer, cleaner control surface than raw relay switches.
 
-## Key options
+## Options
 
-All options are configurable via **Settings -> Devices & Services -> Atlas Scientific Pool -> Configure**.
+All options are configurable via **Settings → Devices & Services → Atlas Scientific Pool → Configure**.
 
-### Dosing and chemistry safety
+### General
 
-- `enable_controls`
-- `max_dose_ml`
-- `cooldown_seconds`
-- `pool_volume_liters`
-- `chlorine_strength_percent`
-- `max_ppm_increase_per_dose`
-- `acid_strength_percent`
-- `max_ph_drop_per_dose`
-- `total_alkalinity_ppm`
+| Setting           | Description                                                                                                                            | Default | Range |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------- | ----- |
+| `scan_interval`   | How often the coordinator polls node state (seconds)                                                                                   | `30`    | 5–300 |
+| `enable_controls` | Master switch for all dosing and pump control actions                                                                                  | `true`  | —     |
+| `winter_mode`     | Pause all dosing, pump controls, and automations while still reading sensor values. Also exposed as the **Winter mode** switch entity. | `false` | —     |
 
-### ORP and water-level automation
+### Dosing safety
 
-- `enable_orp_automation`, `default_target_orp`, `orp_hysteresis_mv`, `orp_sensor_object_id`
-- `enable_level_automation`, `default_target_water_level_percent`, `level_hysteresis_percent`, `level_sensor_object_id`
-- `fill_start_button_object_id`, `fill_stop_button_object_id`, `fill_running_binary_sensor_object_id`
-- `max_fill_runtime_minutes`
+| Setting                     | Description                                                                                  | Default | Range       |
+| --------------------------- | -------------------------------------------------------------------------------------------- | ------- | ----------- |
+| `max_dose_ml`               | Hard upper limit for a single dose regardless of other caps (ml)                             | `100`   | 1–500       |
+| `cooldown_seconds`          | Minimum time between consecutive doses of the same chemical (seconds)                        | `60`    | 0–3600      |
+| `default_chlorine_dose_ml`  | Pre-filled value for the **Chlorine dose target** number entity (ml)                         | `50`    | 1–500       |
+| `default_acid_dose_ml`      | Pre-filled value for the **Acid dose target** number entity (ml)                             | `50`    | 1–500       |
+| `pool_volume_liters`        | Pool volume used to compute chemistry dose caps (litres)                                     | `50000` | 1000–500000 |
+| `chlorine_strength_percent` | Available chlorine concentration of your product, used to compute the pool-size dose cap (%) | `12.5`  | 1–20        |
+| `max_ppm_increase_per_dose` | Maximum allowed FC increase per dose used by the pool-size cap (ppm)                         | `0.3`   | 0.05–3      |
+| `acid_strength_percent`     | Acid concentration of your product, used to compute the pH-drop dose cap (%)                 | `31.45` | 1–50        |
+| `max_ph_drop_per_dose`      | Maximum allowed pH drop per dose used by the pool-size cap                                   | `0.1`   | 0.01–1      |
+| `total_alkalinity_ppm`      | Current total alkalinity, used in acid dose cap calculation (ppm)                            | `80`    | 20–250      |
 
-### Alerting
+### ORP automation
 
-- `enable_notifications`
-- `notify_service` (e.g. `notify.mobile_app_myphone`)
-- `ph_sensor_object_id`
-- `ph_min_threshold`, `ph_max_threshold`
-- `orp_alert_threshold`
-- `notification_cooldown_minutes`
+| Setting                 | Description                                                                  | Default | Range   |
+| ----------------------- | ---------------------------------------------------------------------------- | ------- | ------- |
+| `enable_orp_automation` | Automatically dose chlorine when ORP drops below the target minus hysteresis | `false` | —       |
+| `default_target_orp`    | Pre-filled value for the **Target ORP** number entity (mV)                   | `700`   | 400–950 |
+| `orp_hysteresis_mv`     | ORP must be this many mV below target before automation doses (mV)           | `15`    | 0–100   |
+| `orp_sensor_object_id`  | ESPHome object ID of the ORP sensor on the chemistry node                    | `orp`   | —       |
 
-### Pump controls exposure and abstraction
+### Water-level automation
 
-- `expose_raw_pump_switches` (default `false`)
-  - If disabled, raw pump relay switch entities are hidden.
-- `enable_pump_speed_abstraction` (default `true`)
-  - Enables friendly `pool pump` + `pool pump speed` entities.
-- Mapping object IDs:
-  - `pump_power_switch_object_id` (default `relay4`)
-  - `pump_speed_low_switch_object_id` (default `relay3`)
-  - `pump_speed_medium_switch_object_id` (default `relay2`)
-  - `pump_speed_high_switch_object_id` (default `relay1`)
+| Setting                                | Description                                                                    | Default      | Range |
+| -------------------------------------- | ------------------------------------------------------------------------------ | ------------ | ----- |
+| `enable_level_automation`              | Automatically start/stop fill valve when water level goes out of range         | `false`      | —     |
+| `default_target_water_level_percent`   | Pre-filled value for the **Target water level** number entity (%)              | `85`         | 1–100 |
+| `level_hysteresis_percent`             | Level must drop this far below target before filling starts (%)                | `3`          | 0–30  |
+| `level_sensor_object_id`               | ESPHome object ID of the water-level sensor                                    | `pool_level` | —     |
+| `fill_start_button_object_id`          | ESPHome object ID of the fill-start button                                     | _(empty)_    | —     |
+| `fill_stop_button_object_id`           | ESPHome object ID of the fill-stop button                                      | _(empty)_    | —     |
+| `fill_running_binary_sensor_object_id` | ESPHome object ID of the fill-in-progress binary sensor                        | _(empty)_    | —     |
+| `max_fill_runtime_minutes`             | Maximum continuous fill time before automation force-stops the valve (minutes) | `45`         | 1–600 |
+
+### Alerts and notifications
+
+| Setting                         | Description                                                     | Default   | Range   |
+| ------------------------------- | --------------------------------------------------------------- | --------- | ------- |
+| `enable_notifications`          | Send notifications via a Home Assistant notify service          | `false`   | —       |
+| `notify_service`                | HA notify service to call, e.g. `notify.mobile_app_myphone`     | _(empty)_ | —       |
+| `notification_cooldown_minutes` | Minimum time between repeated alerts of the same type (minutes) | `60`      | 5–1440  |
+| `ph_sensor_object_id`           | ESPHome object ID of the pH sensor on the chemistry node        | `ph`      | —       |
+| `ph_min_threshold`              | pH below this value triggers a low-pH alert                     | `7.2`     | 6.0–8.0 |
+| `ph_max_threshold`              | pH above this value triggers a high-pH alert                    | `7.8`     | 6.0–8.5 |
+| `orp_alert_threshold`           | ORP below this value triggers a low-ORP alert (mV)              | `600`     | 300–900 |
+
+### Pump relay exposure and abstraction
+
+| Setting                              | Description                                                                      | Default  |
+| ------------------------------------ | -------------------------------------------------------------------------------- | -------- |
+| `expose_raw_pump_switches`           | Show individual relay switch entities for the pump node                          | `false`  |
+| `enable_pump_speed_abstraction`      | Enable the friendly **Pool pump** switch and **Pool pump speed** select entities | `true`   |
+| `pump_power_switch_object_id`        | Pump node relay that controls power                                              | `relay4` |
+| `pump_speed_low_switch_object_id`    | Pump node relay that selects low speed (~1200 RPM)                               | `relay3` |
+| `pump_speed_medium_switch_object_id` | Pump node relay that selects medium speed (~2400 RPM)                            | `relay2` |
+| `pump_speed_high_switch_object_id`   | Pump node relay that selects high speed (~2900 RPM)                              | `relay1` |
+
+### Chemistry node ESPHome object IDs
+
+These map integration commands to the corresponding ESPHome entities on the chemistry node. Change them only if your ESPHome firmware uses different object IDs.
+
+| Setting                          | Description                                                     | Default                  |
+| -------------------------------- | --------------------------------------------------------------- | ------------------------ |
+| `chlorine_volume_number`         | Number entity that sets the target dose volume                  | `volume_cl`              |
+| `acid_volume_number`             | Number entity that sets the target dose volume                  | `volume_acid`            |
+| `chlorine_dose_button`           | Button that starts the chlorine dosing sequence                 | `dose_clorine_over_time` |
+| `acid_dose_button`               | Button that starts the acid dosing sequence                     | `dose_acid_over_time`    |
+| `chlorine_stop_button`           | Button that stops the chlorine pump immediately                 | `stop_cl_pump`           |
+| `acid_stop_button`               | Button that stops the acid pump immediately                     | `stop_acid_pump`         |
+| `chlorine_running_binary_sensor` | Binary sensor that reports whether the chlorine pump is running | `pump_cl_state`          |
+| `acid_running_binary_sensor`     | Binary sensor that reports whether the acid pump is running     | `pump_acid_state`        |
 
 ## Safety model
 
@@ -145,34 +188,6 @@ Every chlorine/acid dose path (manual and automated) is validated in this order:
 If a pump node is configured, chlorine and acid dosing are blocked unless the configured pump power switch reports ON.
 
 This prevents chemical dosing without active circulation.
-
-## ESPHome object-id defaults
-
-### Chemistry defaults (`pool-ezo.yml`)
-
-- chlorine volume number: `volume_cl`
-- acid volume number: `volume_acid`
-- chlorine dose button: `dose_clorine_over_time`
-- acid dose button: `dose_acid_over_time`
-- chlorine stop button: `stop_cl_pump`
-- acid stop button: `stop_acid_pump`
-- chlorine running binary sensor: `pump_cl_state`
-- acid running binary sensor: `pump_acid_state`
-- ORP sensor: `orp`
-- pH sensor: `ph`
-
-### Level defaults (`pool-water-level.yaml`)
-
-- water-level sensor: `pool_level`
-
-### Pump abstraction defaults (`pool-pump-vario.yaml`)
-
-- power relay: `relay4`
-- low speed relay: `relay3` (1200 RPM)
-- medium speed relay: `relay2` (2400 RPM)
-- high speed relay: `relay1` (2900 RPM)
-
-All object IDs are configurable in options.
 
 ## Development
 
