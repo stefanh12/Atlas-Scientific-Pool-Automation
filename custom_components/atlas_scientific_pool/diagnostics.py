@@ -12,11 +12,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import DOMAIN
 
-TO_REDACT = {
-    "chemistry_noise_psk",
-    "pressure_noise_psk",
-    "level_noise_psk",
-}
+TO_REDACT: set[str] = set()
 
 
 async def async_get_config_entry_diagnostics(

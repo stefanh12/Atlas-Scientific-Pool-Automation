@@ -20,7 +20,6 @@ from custom_components.atlas_scientific_pool.coordinator import (
 )
 from custom_components.atlas_scientific_pool.models import (
     NodeCommandMap,
-    NodeConfig,
     SafetyConfig,
 )
 
@@ -38,21 +37,13 @@ class FakeClient:
     async def press_button(self, object_id: str) -> None:
         self.button_calls.append(object_id)
 
-    async def disconnect(self) -> None:
-        return None
-
 
 @pytest.fixture
 def coordinator(hass: HomeAssistant) -> AtlasScientificPoolCoordinator:
     """Create a coordinator with faked node clients."""
     coord = AtlasScientificPoolCoordinator(
         hass,
-        chemistry=NodeConfig(ROLE_CHEMISTRY, "chem.local", 6053, "a"),
-        pressure=NodeConfig(ROLE_PRESSURE, "pressure.local", 6053, "b"),
-        level=NodeConfig(ROLE_LEVEL, "level.local", 6053, "c"),
-        pump=None,
-        heat_pump=None,
-        timeout=10,
+        clients={},
         update_interval=timedelta(seconds=30),
         safety=SafetyConfig(
             controls_enabled=True,

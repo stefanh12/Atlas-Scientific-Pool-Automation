@@ -60,7 +60,6 @@ from .const import (
     CONF_PUMP_SPEED_LOW_SWITCH_OBJECT_ID,
     CONF_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID,
     CONF_SCAN_INTERVAL,
-    CONF_TIMEOUT,
     CONF_TOTAL_ALKALINITY_PPM,
     DEFAULT_ACID_DOSE_BUTTON,
     DEFAULT_ACID_DOSE_ML,
@@ -107,7 +106,6 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_TARGET_ORP,
     DEFAULT_TARGET_WATER_LEVEL_PERCENT,
-    DEFAULT_TIMEOUT,
     DEFAULT_TOTAL_ALKALINITY_PPM,
     DOMAIN,
 )
@@ -219,9 +217,7 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=5, max=300, mode=selector.NumberSelectorMode.BOX)
             ),
-            vol.Required(CONF_TIMEOUT, default=defaults.get(CONF_TIMEOUT, DEFAULT_TIMEOUT)): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=3, max=60, mode=selector.NumberSelectorMode.BOX)
-            ),
+
             vol.Required(
                 CONF_ENABLE_CONTROLS,
                 default=defaults.get(CONF_ENABLE_CONTROLS, DEFAULT_ENABLE_CONTROLS),
@@ -600,7 +596,6 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
 
                     options = {
                         CONF_SCAN_INTERVAL: DEFAULT_SCAN_INTERVAL,
-                        CONF_TIMEOUT: DEFAULT_TIMEOUT,
                         CONF_ENABLE_CONTROLS: DEFAULT_ENABLE_CONTROLS,
                         CONF_WINTER_MODE: DEFAULT_WINTER_MODE,
                         CONF_MAX_DOSE_ML: DEFAULT_MAX_DOSE_ML,

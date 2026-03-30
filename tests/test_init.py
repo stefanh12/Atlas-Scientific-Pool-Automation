@@ -7,27 +7,49 @@ from unittest.mock import AsyncMock, patch
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from homeassistant.helpers import device_registry as dr
+
 from custom_components.atlas_scientific_pool import async_setup_entry
 from custom_components.atlas_scientific_pool.const import DOMAIN
 
 
 async def test_setup_entry_creates_coordinator(hass: HomeAssistant) -> None:
     """Integration setup should create and store coordinator."""
-    MockConfigEntry(
+    ezo_entry = MockConfigEntry(
         domain="esphome",
         title="pool-ezo",
         data={"host": "pool-ezo.local", "port": 6053, "noise_psk": "a"},
-    ).add_to_hass(hass)
-    MockConfigEntry(
+    )
+    ezo_entry.add_to_hass(hass)
+    pressure_entry = MockConfigEntry(
         domain="esphome",
         title="pool-pressure",
         data={"host": "pool-pressure.local", "port": 6053, "noise_psk": "b"},
-    ).add_to_hass(hass)
-    MockConfigEntry(
+    )
+    pressure_entry.add_to_hass(hass)
+    level_entry = MockConfigEntry(
         domain="esphome",
         title="pool-level",
         data={"host": "pool-level.local", "port": 6053, "noise_psk": "c"},
-    ).add_to_hass(hass)
+    )
+    level_entry.add_to_hass(hass)
+
+    dev_reg = dr.async_get(hass)
+    dev_reg.async_get_or_create(
+        config_entry_id=ezo_entry.entry_id,
+        identifiers={("esphome", "pool_ezo")},
+        name="pool-ezo",
+    )
+    dev_reg.async_get_or_create(
+        config_entry_id=pressure_entry.entry_id,
+        identifiers={("esphome", "pool_pressure")},
+        name="pool-pressure",
+    )
+    dev_reg.async_get_or_create(
+        config_entry_id=level_entry.entry_id,
+        identifiers={("esphome", "pool_level")},
+        name="pool-level",
+    )
 
     mock_config_entry = MockConfigEntry(
         domain=DOMAIN,

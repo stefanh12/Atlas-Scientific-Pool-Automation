@@ -1,271 +1,144 @@
-"""ESPHome native API transport layer."""
+"""HA state-machine adapter replacing the direct ESPHome API connections."""
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import time
-from dataclasses import dataclass, field
 from typing import Any
 
-_RECONNECT_BACKOFF_SECONDS = 60
-
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 _LOGGER = logging.getLogger(__name__)
 
-
-class ESPHomeTransportError(HomeAssistantError):
-    """Raised when ESPHome transport operations fail."""
-
-
-@dataclass(slots=True)
-class NodeSnapshot:
-    """Latest known entity metadata and values for one node."""
-
-    device_name: str
-    model: str | None
-    mac_address: str | None
-    infos_by_object_id: dict[str, Any] = field(default_factory=dict)
-    states_by_key: dict[int, Any] = field(default_factory=dict)
+# Platforms whose entities have a meaningful state value.
+_STATE_PLATFORMS = ("sensor", "switch", "number", "select", "binary_sensor")
 
 
-class ESPHomeNodeClient:
-    """Thin wrapper over aioesphomeapi APIClient."""
+def _slugify(name: str) -> str:
+    """Normalize an ESPHome device name to an HA entity_id slug (hyphens → underscores)."""
+    return name.lower().replace("-", "_").replace(" ", "_")
+
+
+class HANodeClient:
+    """Read ESPHome node state from the HA state machine; write via HA services."""
 
     def __init__(
         self,
-        host: str,
-        port: int,
-        noise_psk: str | None,
-        timeout: float,
+        hass: HomeAssistant,
+        role: str,
+        device: dr.DeviceEntry,
     ) -> None:
-        self._host = host
-        self._port = port
-        self._noise_psk = noise_psk
-        self._timeout = timeout
+        self._hass = hass
+        self._role = role
+        self._device_id = device.id
+        self._slug = _slugify(device.name or role)
 
-        self._api: Any | None = None
-        self._unsubscribe_state: Any | None = None
-        self._snapshot = NodeSnapshot(device_name=host, model=None, mac_address=None)
-        self._lock = asyncio.Lock()
-        self._next_retry_at: float | None = None
+    # ------------------------------------------------------------------
+    # Availability
+    # ------------------------------------------------------------------
 
-    async def connect(self) -> None:
-        """Connect and bootstrap metadata/state subscription."""
-        async with self._lock:
-            if self._api is not None:
-                return
+    def node_available(self) -> bool:
+        """Return True when the device has at least one non-unavailable entity."""
+        ent_reg = er.async_get(self._hass)
+        for entry in er.async_entries_for_device(ent_reg, self._device_id):
+            if entry.disabled_by:
+                continue
+            state = self._hass.states.get(entry.entity_id)
+            if state is not None:
+                return state.state != "unavailable"
+        return False
 
-            now = time.monotonic()
-            if self._next_retry_at is not None and now < self._next_retry_at:
-                raise ESPHomeTransportError(
-                    f"ESPHome node {self._host}:{self._port} is not reachable"
-                    f" (retry in {self._next_retry_at - now:.0f}s)"
-                )
-
-            try:
-                from aioesphomeapi import APIClient
-                from aioesphomeapi.core import APIConnectionError
-            except ImportError as err:
-                raise ESPHomeTransportError(
-                    "aioesphomeapi is required for atlas_scientific_pool"
-                ) from err
-
-            # aioesphomeapi has changed APIClient constructor signatures over time.
-            # Try known variants to keep this integration compatible across HA installs.
-            api: Any | None = None
-            constructor_error: TypeError | None = None
-            for factory in (
-                lambda: APIClient(
-                    address=self._host,
-                    port=self._port,
-                    noise_psk=self._noise_psk or None,
-                ),
-                lambda: APIClient(
-                    self._host,
-                    self._port,
-                    None,
-                    noise_psk=self._noise_psk or None,
-                ),
-                lambda: APIClient(self._host, self._port, None),
-            ):
-                try:
-                    api = factory()
-                    break
-                except TypeError as err:
-                    constructor_error = err
-
-            if api is None:
-                raise ESPHomeTransportError(
-                    "Incompatible aioesphomeapi APIClient constructor"
-                ) from constructor_error
-
-            try:
-                try:
-                    connect_coro = api.connect(login=True)
-                except TypeError:
-                    connect_coro = api.connect()
-                await asyncio.wait_for(connect_coro, timeout=self._timeout)
-                device_info = await asyncio.wait_for(
-                    api.device_info(), timeout=self._timeout
-                )
-                entities = await asyncio.wait_for(
-                    api.list_entities_services(), timeout=self._timeout
-                )
-            except (TimeoutError, APIConnectionError) as err:
-                self._next_retry_at = time.monotonic() + _RECONNECT_BACKOFF_SECONDS
-                raise ESPHomeTransportError(
-                    f"Could not connect to ESPHome node {self._host}:{self._port}"
-                ) from err
-
-            infos: dict[str, Any] = {}
-            for info in entities:
-                object_id = getattr(info, "object_id", None)
-                if object_id:
-                    infos[object_id] = info
-
-            def _state_callback(state: Any) -> None:
-                key = getattr(state, "key", None)
-                if key is None:
-                    return
-                self._snapshot.states_by_key[key] = state
-
-            unsubscribe = api.subscribe_states(_state_callback)
-
-            self._next_retry_at = None
-            self._api = api
-            self._unsubscribe_state = unsubscribe
-            self._snapshot = NodeSnapshot(
-                device_name=getattr(device_info, "name", self._host),
-                model=getattr(device_info, "model", None),
-                mac_address=getattr(device_info, "mac_address", None),
-                infos_by_object_id=infos,
-                states_by_key=self._snapshot.states_by_key,
-            )
-
-    async def disconnect(self) -> None:
-        """Disconnect client and release callbacks."""
-        async with self._lock:
-            if self._unsubscribe_state is not None:
-                self._unsubscribe_state()
-                self._unsubscribe_state = None
-
-            if self._api is not None:
-                await self._api.disconnect(force=True)
-                self._api = None
-
-    async def refresh(self) -> NodeSnapshot:
-        """Ensure connection and return latest snapshot."""
-        await self.connect()
-        return self._snapshot
-
-    async def press_button(self, object_id: str) -> None:
-        """Execute a button press on the node."""
-        await self.connect()
-        info = self._snapshot.infos_by_object_id.get(object_id)
-        if info is None:
-            raise ESPHomeTransportError(f"Button object_id '{object_id}' not found")
-
-        key = getattr(info, "key", None)
-        if key is None:
-            raise ESPHomeTransportError(f"Button '{object_id}' has no key")
-
-        self._api.button_command(key)  # type: ignore[union-attr]
-
-    async def set_number(self, object_id: str, value: float) -> None:
-        """Set a numeric entity value on the node."""
-        await self.connect()
-        info = self._snapshot.infos_by_object_id.get(object_id)
-        if info is None:
-            raise ESPHomeTransportError(f"Number object_id '{object_id}' not found")
-
-        key = getattr(info, "key", None)
-        if key is None:
-            raise ESPHomeTransportError(f"Number '{object_id}' has no key")
-
-        self._api.number_command(key, float(value))  # type: ignore[union-attr]
-
-    async def set_switch(self, object_id: str, is_on: bool) -> None:
-        """Set a switch entity value on the node."""
-        await self.connect()
-        info = self._snapshot.infos_by_object_id.get(object_id)
-        if info is None:
-            raise ESPHomeTransportError(f"Switch object_id '{object_id}' not found")
-
-        key = getattr(info, "key", None)
-        if key is None:
-            raise ESPHomeTransportError(f"Switch '{object_id}' has no key")
-
-        self._api.switch_command(key, bool(is_on))  # type: ignore[union-attr]
-
-    async def set_select(self, object_id: str, option: str) -> None:
-        """Set a select entity option on the node."""
-        await self.connect()
-        info = self._snapshot.infos_by_object_id.get(object_id)
-        if info is None:
-            raise ESPHomeTransportError(f"Select object_id '{object_id}' not found")
-
-        key = getattr(info, "key", None)
-        if key is None:
-            raise ESPHomeTransportError(f"Select '{object_id}' has no key")
-
-        self._api.select_command(key, str(option))  # type: ignore[union-attr]
-
-    def value_for_object_id(self, object_id: str) -> Any | None:
-        """Return latest state object for an object_id."""
-        info = self._snapshot.infos_by_object_id.get(object_id)
-        if info is None:
-            return None
-        key = getattr(info, "key", None)
-        if key is None:
-            return None
-        return self._snapshot.states_by_key.get(key)
+    # ------------------------------------------------------------------
+    # State reads
+    # ------------------------------------------------------------------
 
     def state_value(self, object_id: str) -> Any | None:
-        """Return scalar `state` value for object_id when available."""
-        state = self.value_for_object_id(object_id)
-        if state is None:
-            return None
-        return getattr(state, "state", None)
+        """Return the current state string for an object_id, searched across all platforms."""
+        for platform in _STATE_PLATFORMS:
+            state = self._hass.states.get(f"{platform}.{self._slug}_{object_id}")
+            if state is not None:
+                return state.state
+        return None
+
+    def all_object_ids(self) -> list[str]:
+        """Return all ESPHome object_ids for this device (state-bearing platforms only)."""
+        return self._object_ids_for_platforms(_STATE_PLATFORMS)
+
+    def _object_ids_for_platforms(self, platforms: tuple[str, ...]) -> list[str]:
+        ent_reg = er.async_get(self._hass)
+        result: list[str] = []
+        for entry in er.async_entries_for_device(ent_reg, self._device_id):
+            if entry.disabled_by:
+                continue
+            platform, _, slug_part = entry.entity_id.partition(".")
+            if platform not in platforms:
+                continue
+            prefix = f"{self._slug}_"
+            if slug_part.startswith(prefix):
+                result.append(slug_part[len(prefix):])
+        return result
+
+    def _object_ids_for_platform(self, platform: str) -> list[str]:
+        return self._object_ids_for_platforms((platform,))
 
     def all_sensor_object_ids(self) -> list[str]:
-        """Return object IDs that look like measurable entities."""
-        result: list[str] = []
-        for object_id, info in self._snapshot.infos_by_object_id.items():
-            class_name = type(info).__name__.lower()
-            if "sensor" in class_name:
-                result.append(object_id)
-        return result
+        return self._object_ids_for_platform("sensor")
 
     def all_number_object_ids(self) -> list[str]:
-        """Return object IDs for number entities."""
-        result: list[str] = []
-        for object_id, info in self._snapshot.infos_by_object_id.items():
-            if "number" in type(info).__name__.lower():
-                result.append(object_id)
-        return result
+        return self._object_ids_for_platform("number")
 
     def all_button_object_ids(self) -> list[str]:
-        """Return object IDs for button entities."""
-        result: list[str] = []
-        for object_id, info in self._snapshot.infos_by_object_id.items():
-            if "button" in type(info).__name__.lower():
-                result.append(object_id)
-        return result
+        return self._object_ids_for_platform("button")
 
     def all_switch_object_ids(self) -> list[str]:
-        """Return object IDs for switch entities."""
-        result: list[str] = []
-        for object_id, info in self._snapshot.infos_by_object_id.items():
-            if "switch" in type(info).__name__.lower():
-                result.append(object_id)
-        return result
+        return self._object_ids_for_platform("switch")
 
     def all_select_object_ids(self) -> list[str]:
-        """Return object IDs for select entities."""
-        result: list[str] = []
-        for object_id, info in self._snapshot.infos_by_object_id.items():
-            if "select" in type(info).__name__.lower():
-                result.append(object_id)
+        return self._object_ids_for_platform("select")
+
+    def all_select_options(self) -> dict[str, list[str]]:
+        ent_reg = er.async_get(self._hass)
+        prefix = f"select.{self._slug}_"
+        result: dict[str, list[str]] = {}
+        for entry in er.async_entries_for_device(ent_reg, self._device_id):
+            if entry.disabled_by or not entry.entity_id.startswith(prefix):
+                continue
+            object_id = entry.entity_id[len(prefix):]
+            state = self._hass.states.get(entry.entity_id)
+            if state is not None:
+                result[object_id] = list(state.attributes.get("options", []))
         return result
+
+    # ------------------------------------------------------------------
+    # Service calls (writes)
+    # ------------------------------------------------------------------
+
+    async def press_button(self, object_id: str) -> None:
+        await self._hass.services.async_call(
+            "button", "press",
+            {"entity_id": f"button.{self._slug}_{object_id}"},
+            blocking=True,
+        )
+
+    async def set_number(self, object_id: str, value: float) -> None:
+        await self._hass.services.async_call(
+            "number", "set_value",
+            {"entity_id": f"number.{self._slug}_{object_id}", "value": value},
+            blocking=True,
+        )
+
+    async def set_switch(self, object_id: str, is_on: bool) -> None:
+        service = "turn_on" if is_on else "turn_off"
+        await self._hass.services.async_call(
+            "switch", service,
+            {"entity_id": f"switch.{self._slug}_{object_id}"},
+            blocking=True,
+        )
+
+    async def set_select(self, object_id: str, option: str) -> None:
+        await self._hass.services.async_call(
+            "select", "select_option",
+            {"entity_id": f"select.{self._slug}_{object_id}", "option": option},
+            blocking=True,
+        )
+

@@ -18,8 +18,7 @@ from .const import (
     ROLE_LEVEL,
     ROLE_PUMP,
 )
-from .esphome_api import ESPHomeNodeClient, ESPHomeTransportError
-from .models import CooldownState, NodeCommandMap, NodeConfig, SafetyConfig
+from .models import CooldownState, NodeCommandMap, SafetyConfig
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,12 +44,7 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self,
         hass: HomeAssistant,
         *,
-        chemistry: NodeConfig,
-        pressure: NodeConfig,
-        level: NodeConfig,
-        pump: NodeConfig | None,
-        heat_pump: NodeConfig | None,
-        timeout: float,
+        clients: dict[str, Any],
         update_interval: timedelta,
         safety: SafetyConfig,
         command_map: NodeCommandMap,
@@ -64,16 +58,7 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             always_update=False,
         )
 
-        self._clients: dict[str, ESPHomeNodeClient] = {}
-        for node in (chemistry, pressure, level, pump, heat_pump):
-            if node is None or not node.host.strip():
-                continue
-            self._clients[node.role] = ESPHomeNodeClient(
-                node.host,
-                node.port,
-                node.noise_psk,
-                timeout,
-            )
+        self._clients: dict[str, Any] = dict(clients)
 
         self._safety = safety
         self._command_map = command_map
@@ -88,9 +73,8 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._node_was_available: dict[str, bool] = {}
 
     async def async_shutdown(self) -> None:
-        """Close all node connections."""
-        for client in self._clients.values():
-            await client.disconnect()
+        """No-op: connections are managed by the ESPHome integration."""
+        return
 
     async def _async_update(self) -> dict[str, Any]:
         data: dict[str, Any] = {
@@ -100,40 +84,30 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         }
 
         for role, client in self._clients.items():
-            try:
-                snapshot = await client.refresh()
+            available = client.node_available()
+            if available:
                 if not self._node_was_available.get(role, True):
                     _LOGGER.info("Node '%s' is back online", role)
-                self._node_was_available[role] = True
-                data["nodes"][role] = {
-                    "available": True,
-                    "device_name": snapshot.device_name,
-                    "model": snapshot.model,
-                    "mac_address": snapshot.mac_address,
-                    "sensor_object_ids": client.all_sensor_object_ids(),
-                    "number_object_ids": client.all_number_object_ids(),
-                    "button_object_ids": client.all_button_object_ids(),
-                    "switch_object_ids": client.all_switch_object_ids(),
-                    "select_object_ids": client.all_select_object_ids(),
-                    "select_options": {
-                        object_id: list(getattr(snapshot.infos_by_object_id.get(object_id), "options", []))
-                        for object_id in client.all_select_object_ids()
-                    },
-                    "states": {
-                        object_id: client.state_value(object_id)
-                        for object_id in snapshot.infos_by_object_id
-                    },
-                }
-            except ESPHomeTransportError as err:
+            else:
                 if self._node_was_available.get(role, True):
-                    _LOGGER.warning("Node '%s' is not reachable: %s", role, err)
+                    _LOGGER.warning("Node '%s' is not reachable", role)
                 else:
-                    _LOGGER.debug("Node '%s' still not reachable: %s", role, err)
-                self._node_was_available[role] = False
-                data["nodes"][role] = {
-                    "available": False,
-                    "error": str(err),
-                }
+                    _LOGGER.debug("Node '%s' still not reachable", role)
+            self._node_was_available[role] = available
+
+            data["nodes"][role] = {
+                "available": available,
+                "sensor_object_ids": client.all_sensor_object_ids(),
+                "number_object_ids": client.all_number_object_ids(),
+                "button_object_ids": client.all_button_object_ids(),
+                "switch_object_ids": client.all_switch_object_ids(),
+                "select_object_ids": client.all_select_object_ids(),
+                "select_options": client.all_select_options(),
+                "states": {
+                    object_id: client.state_value(object_id)
+                    for object_id in client.all_object_ids()
+                },
+            }
 
         await self._async_run_orp_automation(data)
         await self._async_run_level_automation(data)

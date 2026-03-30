@@ -12,24 +12,7 @@ CONF_LEVEL_NODE = "level_node"
 CONF_PUMP_NODE = "pump_node"
 CONF_HEAT_PUMP_NODE = "heat_pump_node"
 
-CONF_CHEMISTRY_HOST = "chemistry_host"
-CONF_CHEMISTRY_PORT = "chemistry_port"
-CONF_CHEMISTRY_NOISE_PSK = "chemistry_noise_psk"
-CONF_PRESSURE_HOST = "pressure_host"
-CONF_PRESSURE_PORT = "pressure_port"
-CONF_PRESSURE_NOISE_PSK = "pressure_noise_psk"
-CONF_LEVEL_HOST = "level_host"
-CONF_LEVEL_PORT = "level_port"
-CONF_LEVEL_NOISE_PSK = "level_noise_psk"
-CONF_PUMP_HOST = "pump_host"
-CONF_PUMP_PORT = "pump_port"
-CONF_PUMP_NOISE_PSK = "pump_noise_psk"
-CONF_HEAT_PUMP_HOST = "heat_pump_host"
-CONF_HEAT_PUMP_PORT = "heat_pump_port"
-CONF_HEAT_PUMP_NOISE_PSK = "heat_pump_noise_psk"
-
 CONF_SCAN_INTERVAL = "scan_interval"
-CONF_TIMEOUT = "timeout"
 CONF_ENABLE_CONTROLS = "enable_controls"
 CONF_WINTER_MODE = "winter_mode"
 CONF_MAX_DOSE_ML = "max_dose_ml"
@@ -79,9 +62,7 @@ CONF_ACID_STOP_BUTTON = "acid_stop_button"
 CONF_CHLORINE_RUNNING_BINARY_SENSOR = "chlorine_running_binary_sensor"
 CONF_ACID_RUNNING_BINARY_SENSOR = "acid_running_binary_sensor"
 
-DEFAULT_PORT = 6053
 DEFAULT_SCAN_INTERVAL = 30
-DEFAULT_TIMEOUT = 10
 DEFAULT_ENABLE_CONTROLS = True
 DEFAULT_WINTER_MODE = False
 DEFAULT_MAX_DOSE_ML = 100.0

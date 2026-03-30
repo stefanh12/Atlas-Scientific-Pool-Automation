@@ -12,19 +12,19 @@ from custom_components.atlas_scientific_pool.diagnostics import (
 )
 
 
-async def test_diagnostics_redacts_keys(hass: HomeAssistant) -> None:
-    """Ensure sensitive keys are redacted."""
+async def test_diagnostics_returns_entry_and_coordinator_data(hass: HomeAssistant) -> None:
+    """Diagnostics should return entry data and coordinator snapshot."""
     entry = SimpleNamespace(
         entry_id="entry-1",
-        data={"chemistry_noise_psk": "secret", "chemistry_host": "pool.local"},
-        options={"level_noise_psk": "secret2"},
+        data={"chemistry_host": "pool.local"},
+        options={"scan_interval": 30},
     )
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = SimpleNamespace(
-        data={"nodes": {}, "pressure_noise_psk": "secret3"}
+        data={"nodes": {}}
     )
 
     diagnostics = await async_get_config_entry_diagnostics(hass, entry)
 
-    assert diagnostics["entry"]["chemistry_noise_psk"] == "**REDACTED**"
-    assert diagnostics["options"]["level_noise_psk"] == "**REDACTED**"
-    assert diagnostics["coordinator"]["pressure_noise_psk"] == "**REDACTED**"
+    assert diagnostics["entry"]["chemistry_host"] == "pool.local"
+    assert diagnostics["options"]["scan_interval"] == 30
+    assert "nodes" in diagnostics["coordinator"]

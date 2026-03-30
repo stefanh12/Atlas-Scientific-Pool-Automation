@@ -7,16 +7,6 @@ from datetime import datetime
 
 
 @dataclass(slots=True)
-class NodeConfig:
-    """Connection settings for one ESPHome node."""
-
-    role: str
-    host: str
-    port: int
-    noise_psk: str | None
-
-
-@dataclass(slots=True)
 class NodeCommandMap:
     """Entity object-id mapping for controlled dosing."""
 
