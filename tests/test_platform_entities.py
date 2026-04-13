@@ -8,8 +8,10 @@ from unittest.mock import AsyncMock
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.atlas_scientific_pool import (
+    binary_sensor as binary_sensor_platform,
+)
 from custom_components.atlas_scientific_pool import button as button_platform
-from custom_components.atlas_scientific_pool import binary_sensor as binary_sensor_platform
 from custom_components.atlas_scientific_pool import number as number_platform
 from custom_components.atlas_scientific_pool import select as select_platform
 from custom_components.atlas_scientific_pool import sensor as sensor_platform

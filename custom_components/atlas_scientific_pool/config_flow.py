@@ -6,11 +6,12 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.helpers import selector
+
 try:
     from homeassistant.config_entries import ConfigFlowResult
 except ImportError:
     from homeassistant.data_entry_flow import FlowResult as ConfigFlowResult
-from homeassistant.helpers import selector
 
 from .const import (
     CONF_ACID_COOLDOWN_SECONDS,
