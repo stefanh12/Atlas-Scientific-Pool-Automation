@@ -1,4 +1,6 @@
-pytest-homeassistant-custom-component==0.13.205
+pytest-homeassistant-custom-component==0.13.109; python_version < "3.12"
+pytest-homeassistant-custom-component==0.13.205; python_version >= "3.12"
+aioesphomeapi>=44.8.0; python_version >= "3.12"
 ruff==0.12.8
 mypy==1.17.1
 types-PyYAML==6.0.12.20250822

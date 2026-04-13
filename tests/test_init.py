@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+import pytest
+from homeassistant.config_entries import ConfigEntryNotReady
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.atlas_scientific_pool import async_setup_entry
+import custom_components.atlas_scientific_pool as atlas_init
 from custom_components.atlas_scientific_pool.const import DOMAIN
 
 
@@ -114,6 +117,106 @@ async def test_setup_entry_creates_coordinator(hass: HomeAssistant) -> None:
         coordinator = coordinator_cls.return_value
         coordinator.async_config_entry_first_refresh = AsyncMock()
 
-        assert await async_setup_entry(hass, mock_config_entry)
+        assert await atlas_init.async_setup_entry(hass, mock_config_entry)
 
     assert mock_config_entry.entry_id in hass.data[DOMAIN]
+
+
+async def test_setup_entry_requires_required_node_name(hass: HomeAssistant) -> None:
+    """Setup should fail fast when a required node name is missing."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "pressure_node": "pool-pressure",
+            "level_node": "pool-level",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    with pytest.raises(ConfigEntryNotReady, match="chemistry"):
+        await atlas_init.async_setup_entry(hass, entry)
+
+
+async def test_setup_entry_requires_matching_esphome_entry(hass: HomeAssistant) -> None:
+    """Setup should wait until the mapped ESPHome config entry exists."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "chemistry_node": "pool-ezo",
+            "pressure_node": "pool-pressure",
+            "level_node": "pool-level",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    with pytest.raises(ConfigEntryNotReady, match="pool-ezo"):
+        await atlas_init.async_setup_entry(hass, entry)
+
+
+async def test_setup_entry_requires_esphome_device_registration(hass: HomeAssistant) -> None:
+    """Setup should wait until the ESPHome node has a device entry."""
+    for title in ("pool-ezo", "pool-pressure", "pool-level"):
+        MockConfigEntry(domain="esphome", title=title).add_to_hass(hass)
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "chemistry_node": "pool-ezo",
+            "pressure_node": "pool-pressure",
+            "level_node": "pool-level",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    with pytest.raises(ConfigEntryNotReady, match="No device registered"):
+        await atlas_init.async_setup_entry(hass, entry)
+
+
+async def test_unload_entry_shuts_down_and_cleans_up(hass: HomeAssistant) -> None:
+    """Unload should tear down platforms, stop the coordinator, and clear hass.data."""
+    entry = MockConfigEntry(domain=DOMAIN)
+    coordinator = SimpleNamespace(async_shutdown=AsyncMock())
+    hass.data[DOMAIN] = {entry.entry_id: coordinator}
+
+    with patch.object(
+        hass.config_entries,
+        "async_unload_platforms",
+        new=AsyncMock(return_value=True),
+    ) as unload_platforms:
+        assert await atlas_init.async_unload_entry(hass, entry) is True
+
+    unload_platforms.assert_awaited_once()
+    coordinator.async_shutdown.assert_awaited_once()
+    assert DOMAIN not in hass.data
+
+
+async def test_unload_entry_returns_false_when_platforms_fail(hass: HomeAssistant) -> None:
+    """Unload should leave coordinator state untouched if platform unload fails."""
+    entry = MockConfigEntry(domain=DOMAIN)
+    coordinator = SimpleNamespace(async_shutdown=AsyncMock())
+    hass.data[DOMAIN] = {entry.entry_id: coordinator}
+
+    with patch.object(
+        hass.config_entries,
+        "async_unload_platforms",
+        new=AsyncMock(return_value=False),
+    ):
+        assert await atlas_init.async_unload_entry(hass, entry) is False
+
+    coordinator.async_shutdown.assert_not_awaited()
+    assert hass.data[DOMAIN][entry.entry_id] is coordinator
+
+
+async def test_reload_entry_recreates_integration(hass: HomeAssistant) -> None:
+    """Reload should delegate to unload and then setup."""
+    entry = MockConfigEntry(domain=DOMAIN)
+
+    with patch.object(atlas_init, "async_unload_entry", new=AsyncMock()) as unload_entry, patch.object(
+        atlas_init,
+        "async_setup_entry",
+        new=AsyncMock(return_value=True),
+    ) as setup_entry:
+        await atlas_init.async_reload_entry(hass, entry)
+
+    unload_entry.assert_awaited_once_with(hass, entry)
+    setup_entry.assert_awaited_once_with(hass, entry)

@@ -238,7 +238,12 @@ No configuration is required — the window fills itself from real observations.
 
 ### Requirements
 
-- Python 3.11+
+- Python 3.12+ for CI parity
+
+The checked-in test requirements file uses the Home Assistant test stack that matches the active Python version:
+
+- Python 3.12+ uses the current CI pin.
+- Python 3.11 falls back to a compatible local-validation pin so the dev container can still run the suite.
 
 ### Install test dependencies
 

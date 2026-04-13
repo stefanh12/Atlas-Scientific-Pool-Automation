@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+set -eu
+
+packages=()
+
+if ! command -v python3 >/dev/null 2>&1; then
+    packages+=(python3)
+fi
+
+if ! python3 -m venv --help >/dev/null 2>&1; then
+    packages+=(python3-venv)
+fi
+
+if ! command -v pip3 >/dev/null 2>&1; then
+    packages+=(python3-pip)
+fi
+
+if ! command -v sqlite3 >/dev/null 2>&1; then
+    packages+=(sqlite3)
+fi
+
+if [ ${#packages[@]} -eq 0 ]; then
+    exit 0
+fi
+
+apt-get update -y
+apt-get install -y "${packages[@]}"
