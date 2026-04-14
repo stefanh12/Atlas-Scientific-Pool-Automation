@@ -1,0 +1,225 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+      - "*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (optional for manual runs)"
+        required: false
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: write
+  models: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release tag
+        id: tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            if [[ -z "${{ inputs.tag }}" ]]; then
+              echo "workflow_dispatch requires inputs.tag" >&2
+              exit 1
+            fi
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+          fi
+
+          if [[ -z "$TAG" ]]; then
+            echo "Unable to resolve release tag" >&2
+            exit 1
+          fi
+
+          if ! git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag '$TAG' is not available in this checkout" >&2
+            exit 1
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Build release context
+        id: context
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.tag.outputs.tag }}"
+          PREV_TAG="$(git tag --sort=-v:refname | grep -Fvx "$TAG" | head -n 1 || true)"
+
+          if [[ -n "$PREV_TAG" ]]; then
+            RANGE="$PREV_TAG..$TAG"
+          else
+            RANGE="$TAG"
+          fi
+
+          mkdir -p .github/release
+          CONTEXT_FILE=".github/release/context.txt"
+
+          {
+            echo "Repository: $GITHUB_REPOSITORY"
+            echo "Current tag: $TAG"
+            if [[ -n "$PREV_TAG" ]]; then
+              echo "Previous tag: $PREV_TAG"
+            else
+              echo "Previous tag: none"
+            fi
+            echo "Diff range: $RANGE"
+            echo
+            echo "## Commit list"
+            git log --no-merges --pretty='- %s (%h)' "$RANGE" | head -n 300
+            echo
+            echo "## Changed files"
+            git diff --name-status "$RANGE" | head -n 500
+          } > "$CONTEXT_FILE"
+
+          echo "range=$RANGE" >> "$GITHUB_OUTPUT"
+          echo "previous_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
+          echo "context_file=$CONTEXT_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Generate Copilot release notes (optional)
+        id: ai
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          MODEL: openai/gpt-4.1-mini
+          CONTEXT_FILE: ${{ steps.context.outputs.context_file }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .github/release
+          NOTES_FILE=".github/release/notes_ai.md"
+
+          if [[ -z "${GITHUB_TOKEN:-}" ]]; then
+            echo "GITHUB_TOKEN is unavailable; skipping Copilot notes generation."
+            : > "$NOTES_FILE"
+            echo "notes_file=$NOTES_FILE" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          python - <<'PY'
+import json
+import os
+import urllib.request
+import urllib.error
+
+context_file = os.environ["CONTEXT_FILE"]
+token = os.environ.get("GITHUB_TOKEN", "")
+model = os.environ.get("MODEL", "openai/gpt-4.1-mini")
+notes_file = ".github/release/notes_ai.md"
+
+with open(context_file, "r", encoding="utf-8") as f:
+    context = f.read()
+
+prompt = (
+    "Create concise GitHub release notes in Markdown from this repository diff context. "
+    "Use sections in this exact order when relevant: Breaking Changes, Features, Fixes, Maintenance, "
+    "Upgrade Notes. Be accurate and do not invent changes. If a section has no content, omit it. "
+    "Avoid mentioning trivial formatting-only changes unless they affect behavior."
+)
+
+payload = {
+  "model": model,
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a release engineer. Write clear, user-facing release notes.",
+    },
+    {
+      "role": "user",
+      "content": f"{prompt}\n\n<context>\n{context}\n</context>",
+    },
+  ],
+  "temperature": 0.2,
+}
+
+req = urllib.request.Request(
+  "https://models.inference.ai.azure.com/chat/completions",
+    data=json.dumps(payload).encode("utf-8"),
+    headers={
+    "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    },
+    method="POST",
+)
+
+try:
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+except urllib.error.HTTPError:
+  data = {}
+except urllib.error.URLError:
+    data = {}
+
+text = (
+  data.get("choices", [{}])[0]
+  .get("message", {})
+  .get("content", "")
+  .strip()
+)
+
+with open(notes_file, "w", encoding="utf-8") as f:
+  f.write(text)
+PY
+
+          echo "notes_file=$NOTES_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Build fallback notes
+        id: fallback
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          PREVIOUS_TAG: ${{ steps.context.outputs.previous_tag }}
+          RANGE: ${{ steps.context.outputs.range }}
+          AI_NOTES_FILE: ${{ steps.ai.outputs.notes_file }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .github/release
+          FINAL_NOTES_FILE=".github/release/release_notes.md"
+
+          if [[ -s "$AI_NOTES_FILE" ]]; then
+            cp "$AI_NOTES_FILE" "$FINAL_NOTES_FILE"
+            echo "Using AI-generated release notes."
+          else
+            {
+              echo "## Changes"
+              if [[ -n "$PREVIOUS_TAG" ]]; then
+                echo
+                echo "Range: $PREVIOUS_TAG -> $TAG"
+              else
+                echo
+                echo "Range: initial release up to $TAG"
+              fi
+              echo
+              git log --no-merges --pretty='- %s (%h)' "$RANGE" | head -n 300
+            } > "$FINAL_NOTES_FILE"
+            echo "Using fallback git-log release notes."
+          fi
+
+          echo "notes_file=$FINAL_NOTES_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.tag }}
+          body_path: ${{ steps.fallback.outputs.notes_file }}
+          draft: false
+          prerelease: ${{ contains(steps.tag.outputs.tag, '-rc') || contains(steps.tag.outputs.tag, '-beta') }}
