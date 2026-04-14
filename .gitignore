@@ -9,6 +9,9 @@ __pycache__/
 # Virtual environments
 .venv/
 .venv*/
+.venv-ci/
+.venv-ci-linux/
+.venv-ci-check/
 venv/
 env/
 
