@@ -114,70 +114,71 @@ jobs:
             exit 0
           fi
 
-          python - <<'PY'
-            import json
-            import os
-            import urllib.error
-            import urllib.request
-
-            context_file = os.environ["CONTEXT_FILE"]
-            token = os.environ.get("GITHUB_TOKEN", "")
-            model = os.environ.get("MODEL", "openai/gpt-4.1-mini")
-            notes_file = ".github/release/notes_ai.md"
-
-            with open(context_file, "r", encoding="utf-8") as f:
-                context = f.read()
-
-            prompt = (
-                "Create concise GitHub release notes in Markdown from this repository diff context. "
-                "Use sections in this exact order when relevant: Breaking Changes, Features, Fixes, Maintenance, "
-                "Upgrade Notes. Be accurate and do not invent changes. If a section has no content, omit it. "
-                "Avoid mentioning trivial formatting-only changes unless they affect behavior."
-            )
-
-            payload = {
-                "model": model,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are a release engineer. Write clear, user-facing release notes.",
-                    },
-                    {
-                        "role": "user",
-                        "content": f"{prompt}\n\n<context>\n{context}\n</context>",
-                    },
-                ],
-                "temperature": 0.2,
-            }
-
-            req = urllib.request.Request(
-                "https://models.inference.ai.azure.com/chat/completions",
-                data=json.dumps(payload).encode("utf-8"),
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "Content-Type": "application/json",
-                },
-                method="POST",
-            )
-
-            try:
-                with urllib.request.urlopen(req, timeout=60) as resp:
-                    data = json.loads(resp.read().decode("utf-8"))
-            except urllib.error.HTTPError:
-                data = {}
-            except urllib.error.URLError:
-                data = {}
-
-            text = (
-                data.get("choices", [{}])[0]
-                .get("message", {})
-                .get("content", "")
-                .strip()
-            )
-
-            with open(notes_file, "w", encoding="utf-8") as f:
-                f.write(text)
-            PY
+              {
+              printf '%s\n' \
+                'import json' \
+                'import os' \
+                'import urllib.error' \
+                'import urllib.request' \
+                '' \
+                'context_file = os.environ["CONTEXT_FILE"]' \
+                'token = os.environ.get("GITHUB_TOKEN", "")' \
+                'model = os.environ.get("MODEL", "openai/gpt-4.1-mini")' \
+                'notes_file = ".github/release/notes_ai.md"' \
+                '' \
+                'with open(context_file, "r", encoding="utf-8") as f:' \
+                '    context = f.read()' \
+                '' \
+                'prompt = (' \
+                '    "Create concise GitHub release notes in Markdown from this repository diff context. "' \
+                '    "Use sections in this exact order when relevant: Breaking Changes, Features, Fixes, Maintenance, "' \
+                '    "Upgrade Notes. Be accurate and do not invent changes. If a section has no content, omit it. "' \
+                '    "Avoid mentioning trivial formatting-only changes unless they affect behavior."' \
+                ')' \
+                '' \
+                'payload = {' \
+                '    "model": model,' \
+                '    "messages": [' \
+                '        {' \
+                '            "role": "system",' \
+                '            "content": "You are a release engineer. Write clear, user-facing release notes.",' \
+                '        },' \
+                '        {' \
+                '            "role": "user",' \
+                '            "content": prompt + "\\n\\n<context>\\n" + context + "\\n</context>",' \
+                '        },' \
+                '    ],' \
+                '    "temperature": 0.2,' \
+                '}' \
+                '' \
+                'req = urllib.request.Request(' \
+                '    "https://models.inference.ai.azure.com/chat/completions",' \
+                '    data=json.dumps(payload).encode("utf-8"),' \
+                '    headers={' \
+                '        "Authorization": f"Bearer {token}",' \
+                '        "Content-Type": "application/json",' \
+                '    },' \
+                '    method="POST",' \
+                ')' \
+                '' \
+                'try:' \
+                '    with urllib.request.urlopen(req, timeout=60) as resp:' \
+                '        data = json.loads(resp.read().decode("utf-8"))' \
+                'except urllib.error.HTTPError:' \
+                '    data = {}' \
+                'except urllib.error.URLError:' \
+                '    data = {}' \
+                '' \
+                'text = (' \
+                '    data.get("choices", [{}])[0]' \
+                '    .get("message", {})' \
+                '    .get("content", "")' \
+                '    .strip()' \
+                ')' \
+                '' \
+                'with open(notes_file, "w", encoding="utf-8") as f:' \
+                '    f.write(text)'
+              } | python -
 
           echo "notes_file=$NOTES_FILE" >> "$GITHUB_OUTPUT"
 
