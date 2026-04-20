@@ -77,200 +77,200 @@ jobs:
 
           export TAG PREV_TAG RANGE CONTEXT_FILE STRUCTURED_FILE DETERMINISTIC_NOTES_FILE
           python - <<'PY'
-import json
-import os
-import re
-import subprocess
-
-TAG = os.environ["TAG"]
-PREV_TAG = os.environ.get("PREV_TAG", "")
-RANGE = os.environ["RANGE"]
-CONTEXT_FILE = os.environ["CONTEXT_FILE"]
-STRUCTURED_FILE = os.environ["STRUCTURED_FILE"]
-DETERMINISTIC_NOTES_FILE = os.environ["DETERMINISTIC_NOTES_FILE"]
-REPO = os.environ.get("GITHUB_REPOSITORY", "")
-
-COMMIT_CAP = 300
-FILE_CAP = 500
-
-
-def run_git(args: list[str]) -> str:
-    return subprocess.check_output(["git", *args], text=True).strip("\n")
-
-
-all_commits = [c for c in run_git(["rev-list", "--no-merges", RANGE]).splitlines() if c]
-total_commit_count = len(all_commits)
-selected_commits = all_commits[:COMMIT_CAP]
-commit_truncated = total_commit_count > COMMIT_CAP
-
-changed_files_raw = run_git(["diff", "--name-status", RANGE])
-all_changed_files = [l for l in changed_files_raw.splitlines() if l]
-total_file_count = len(all_changed_files)
-selected_changed_files = all_changed_files[:FILE_CAP]
-file_truncated = total_file_count > FILE_CAP
-
-sections: dict[str, list[dict[str, object]]] = {
-    "breaking_changes": [],
-    "features": [],
-    "fixes": [],
-    "maintenance": [],
-}
-upgrade_notes: list[str] = []
-uncategorized_count = 0
-
-upgrade_file_markers = (
-    "custom_components/atlas_scientific_pool/config_flow.py",
-    "custom_components/atlas_scientific_pool/const.py",
-    "custom_components/atlas_scientific_pool/models.py",
-    "custom_components/atlas_scientific_pool/coordinator.py",
-    "custom_components/atlas_scientific_pool/manifest.json",
-    "custom_components/atlas_scientific_pool/sensor.py",
-    "custom_components/atlas_scientific_pool/number.py",
-    "custom_components/atlas_scientific_pool/select.py",
-    "custom_components/atlas_scientific_pool/switch.py",
-    "custom_components/atlas_scientific_pool/binary_sensor.py",
-    "custom_components/atlas_scientific_pool/button.py",
-)
-
-for commit in selected_commits:
-    subject = run_git(["show", "-s", "--format=%s", commit]).strip()
-    body = run_git(["show", "-s", "--format=%b", commit]).strip()
-    author = run_git(["show", "-s", "--format=%an", commit]).strip()
-    short_hash = run_git(["show", "-s", "--format=%h", commit]).strip()
-    files = [line for line in run_git(["show", "--name-only", "--pretty=format:", commit]).splitlines() if line]
-
-    text = f"{subject}\n{body}".lower()
-    conventional_match = re.match(r"^(feat|fix|chore|docs|refactor|perf|test|build|ci|style|revert)(\(.+\))?(!)?:", subject.lower())
-    commit_type = conventional_match.group(1) if conventional_match else ""
-
-    entry = {
-        "subject": subject,
-        "hash": short_hash,
-        "author": author,
-        "files": files,
-    }
-
-    is_breaking = (
-        "breaking change" in text
-        or "breaking:" in text
-        or bool(re.search(r"^[a-z]+(\(.+\))?!:", subject.lower()))
-    )
-    is_feature = (
-        commit_type == "feat"
-        or subject.lower().startswith("add ")
-        or "feature" in text
-        or "introduce" in text
-    )
-    is_fix = (
-        commit_type == "fix"
-        or any(token in text for token in (" bug", "bugfix", "fix ", "fix:", "hotfix", "regression"))
-    )
-
-    if is_breaking:
-        sections["breaking_changes"].append(entry)
-    elif is_feature:
-        sections["features"].append(entry)
-    elif is_fix:
-        sections["fixes"].append(entry)
-    else:
-        if not commit_type:
-            uncategorized_count += 1
-        sections["maintenance"].append(entry)
-
-    touches_upgrade_surface = any(path in upgrade_file_markers for path in files)
-    mentions_upgrade = any(token in text for token in ("upgrade", "migration", "breaking", "config", "default", "schema"))
-    if touches_upgrade_surface or mentions_upgrade:
-        upgrade_notes.append(f"{subject} ({short_hash})")
-
-structured = {
-    "repository": REPO,
-    "current_tag": TAG,
-    "previous_tag": PREV_TAG,
-    "range": RANGE,
-    "counts": {
-        "total_commits": total_commit_count,
-        "included_commits": len(selected_commits),
-        "commit_truncated": commit_truncated,
-        "total_changed_files": total_file_count,
-        "included_changed_files": len(selected_changed_files),
-        "file_truncated": file_truncated,
-        "uncategorized_commit_count": uncategorized_count,
-    },
-    "sections": sections,
-    "upgrade_notes": sorted(set(upgrade_notes)),
-    "changed_files_preview": selected_changed_files,
-}
-
-with open(STRUCTURED_FILE, "w", encoding="utf-8") as f:
-    json.dump(structured, f, indent=2)
-
-with open(CONTEXT_FILE, "w", encoding="utf-8") as f:
-    f.write(f"Repository: {REPO}\n")
-    f.write(f"Current tag: {TAG}\n")
-    f.write(f"Previous tag: {PREV_TAG or 'none'}\n")
-    f.write(f"Diff range: {RANGE}\n\n")
-    f.write("## Counts\n")
-    f.write(f"- Commits included: {len(selected_commits)} / {total_commit_count}\n")
-    f.write(f"- Changed files included: {len(selected_changed_files)} / {total_file_count}\n")
-    f.write(f"- Uncategorized commits routed to Maintenance: {uncategorized_count}\n\n")
-    f.write("## Structured sections\n")
-    for key, title in (
-        ("breaking_changes", "Breaking Changes"),
-        ("features", "Features"),
-        ("fixes", "Fixes"),
-        ("maintenance", "Maintenance"),
-    ):
-        f.write(f"### {title}\n")
-        if sections[key]:
-            for item in sections[key]:
-                f.write(f"- {item['subject']} ({item['hash']})\n")
-        else:
-            f.write("- none\n")
-        f.write("\n")
-
-    f.write("## Upgrade Notes Candidates\n")
-    if structured["upgrade_notes"]:
-        for note in structured["upgrade_notes"]:
-            f.write(f"- {note}\n")
-    else:
-        f.write("- none\n")
-
-with open(DETERMINISTIC_NOTES_FILE, "w", encoding="utf-8") as f:
-    if commit_truncated or file_truncated:
-        f.write(
-            "_Note: release context was truncated for size limits. "
-            f"Included {len(selected_commits)} of {total_commit_count} commits and "
-            f"{len(selected_changed_files)} of {total_file_count} changed files._\n\n"
-        )
-
-    for key, title in (
-        ("breaking_changes", "Breaking Changes"),
-        ("features", "Features"),
-        ("fixes", "Fixes"),
-        ("maintenance", "Maintenance"),
-    ):
-        entries = sections[key]
-        if not entries:
-            continue
-        f.write(f"## {title}\n\n")
-        for item in entries:
-            f.write(f"- {item['subject']} ({item['hash']})\n")
-        f.write("\n")
-
-    if structured["upgrade_notes"]:
-        f.write("## Upgrade Notes\n\n")
-        for note in structured["upgrade_notes"]:
-            f.write(f"- {note}\n")
-        f.write("\n")
-
-    f.write("## Metadata\n\n")
-    if PREV_TAG:
-        f.write(f"- Range: {PREV_TAG} -> {TAG}\n")
-    else:
-        f.write(f"- Range: initial release up to {TAG}\n")
-    f.write(f"- Commits analyzed: {len(selected_commits)} / {total_commit_count}\n")
-    f.write(f"- Files analyzed: {len(selected_changed_files)} / {total_file_count}\n")
-PY
+          import json
+          import os
+          import re
+          import subprocess
+          
+          TAG = os.environ["TAG"]
+          PREV_TAG = os.environ.get("PREV_TAG", "")
+          RANGE = os.environ["RANGE"]
+          CONTEXT_FILE = os.environ["CONTEXT_FILE"]
+          STRUCTURED_FILE = os.environ["STRUCTURED_FILE"]
+          DETERMINISTIC_NOTES_FILE = os.environ["DETERMINISTIC_NOTES_FILE"]
+          REPO = os.environ.get("GITHUB_REPOSITORY", "")
+          
+          COMMIT_CAP = 300
+          FILE_CAP = 500
+          
+          
+          def run_git(args: list[str]) -> str:
+              return subprocess.check_output(["git", *args], text=True).strip("\n")
+          
+          
+          all_commits = [c for c in run_git(["rev-list", "--no-merges", RANGE]).splitlines() if c]
+          total_commit_count = len(all_commits)
+          selected_commits = all_commits[:COMMIT_CAP]
+          commit_truncated = total_commit_count > COMMIT_CAP
+          
+          changed_files_raw = run_git(["diff", "--name-status", RANGE])
+          all_changed_files = [l for l in changed_files_raw.splitlines() if l]
+          total_file_count = len(all_changed_files)
+          selected_changed_files = all_changed_files[:FILE_CAP]
+          file_truncated = total_file_count > FILE_CAP
+          
+          sections: dict[str, list[dict[str, object]]] = {
+              "breaking_changes": [],
+              "features": [],
+              "fixes": [],
+              "maintenance": [],
+          }
+          upgrade_notes: list[str] = []
+          uncategorized_count = 0
+          
+          upgrade_file_markers = (
+              "custom_components/atlas_scientific_pool/config_flow.py",
+              "custom_components/atlas_scientific_pool/const.py",
+              "custom_components/atlas_scientific_pool/models.py",
+              "custom_components/atlas_scientific_pool/coordinator.py",
+              "custom_components/atlas_scientific_pool/manifest.json",
+              "custom_components/atlas_scientific_pool/sensor.py",
+              "custom_components/atlas_scientific_pool/number.py",
+              "custom_components/atlas_scientific_pool/select.py",
+              "custom_components/atlas_scientific_pool/switch.py",
+              "custom_components/atlas_scientific_pool/binary_sensor.py",
+              "custom_components/atlas_scientific_pool/button.py",
+          )
+          
+          for commit in selected_commits:
+              subject = run_git(["show", "-s", "--format=%s", commit]).strip()
+              body = run_git(["show", "-s", "--format=%b", commit]).strip()
+              author = run_git(["show", "-s", "--format=%an", commit]).strip()
+              short_hash = run_git(["show", "-s", "--format=%h", commit]).strip()
+              files = [line for line in run_git(["show", "--name-only", "--pretty=format:", commit]).splitlines() if line]
+          
+              text = f"{subject}\n{body}".lower()
+              conventional_match = re.match(r"^(feat|fix|chore|docs|refactor|perf|test|build|ci|style|revert)(\(.+\))?(!)?:", subject.lower())
+              commit_type = conventional_match.group(1) if conventional_match else ""
+          
+              entry = {
+                  "subject": subject,
+                  "hash": short_hash,
+                  "author": author,
+                  "files": files,
+              }
+          
+              is_breaking = (
+                  "breaking change" in text
+                  or "breaking:" in text
+                  or bool(re.search(r"^[a-z]+(\(.+\))?!:", subject.lower()))
+              )
+              is_feature = (
+                  commit_type == "feat"
+                  or subject.lower().startswith("add ")
+                  or "feature" in text
+                  or "introduce" in text
+              )
+              is_fix = (
+                  commit_type == "fix"
+                  or any(token in text for token in (" bug", "bugfix", "fix ", "fix:", "hotfix", "regression"))
+              )
+          
+              if is_breaking:
+                  sections["breaking_changes"].append(entry)
+              elif is_feature:
+                  sections["features"].append(entry)
+              elif is_fix:
+                  sections["fixes"].append(entry)
+              else:
+                  if not commit_type:
+                      uncategorized_count += 1
+                  sections["maintenance"].append(entry)
+          
+              touches_upgrade_surface = any(path in upgrade_file_markers for path in files)
+              mentions_upgrade = any(token in text for token in ("upgrade", "migration", "breaking", "config", "default", "schema"))
+              if touches_upgrade_surface or mentions_upgrade:
+                  upgrade_notes.append(f"{subject} ({short_hash})")
+          
+          structured = {
+              "repository": REPO,
+              "current_tag": TAG,
+              "previous_tag": PREV_TAG,
+              "range": RANGE,
+              "counts": {
+                  "total_commits": total_commit_count,
+                  "included_commits": len(selected_commits),
+                  "commit_truncated": commit_truncated,
+                  "total_changed_files": total_file_count,
+                  "included_changed_files": len(selected_changed_files),
+                  "file_truncated": file_truncated,
+                  "uncategorized_commit_count": uncategorized_count,
+              },
+              "sections": sections,
+              "upgrade_notes": sorted(set(upgrade_notes)),
+              "changed_files_preview": selected_changed_files,
+          }
+          
+          with open(STRUCTURED_FILE, "w", encoding="utf-8") as f:
+              json.dump(structured, f, indent=2)
+          
+          with open(CONTEXT_FILE, "w", encoding="utf-8") as f:
+              f.write(f"Repository: {REPO}\n")
+              f.write(f"Current tag: {TAG}\n")
+              f.write(f"Previous tag: {PREV_TAG or 'none'}\n")
+              f.write(f"Diff range: {RANGE}\n\n")
+              f.write("## Counts\n")
+              f.write(f"- Commits included: {len(selected_commits)} / {total_commit_count}\n")
+              f.write(f"- Changed files included: {len(selected_changed_files)} / {total_file_count}\n")
+              f.write(f"- Uncategorized commits routed to Maintenance: {uncategorized_count}\n\n")
+              f.write("## Structured sections\n")
+              for key, title in (
+                  ("breaking_changes", "Breaking Changes"),
+                  ("features", "Features"),
+                  ("fixes", "Fixes"),
+                  ("maintenance", "Maintenance"),
+              ):
+                  f.write(f"### {title}\n")
+                  if sections[key]:
+                      for item in sections[key]:
+                          f.write(f"- {item['subject']} ({item['hash']})\n")
+                  else:
+                      f.write("- none\n")
+                  f.write("\n")
+          
+              f.write("## Upgrade Notes Candidates\n")
+              if structured["upgrade_notes"]:
+                  for note in structured["upgrade_notes"]:
+                      f.write(f"- {note}\n")
+              else:
+                  f.write("- none\n")
+          
+          with open(DETERMINISTIC_NOTES_FILE, "w", encoding="utf-8") as f:
+              if commit_truncated or file_truncated:
+                  f.write(
+                      "_Note: release context was truncated for size limits. "
+                      f"Included {len(selected_commits)} of {total_commit_count} commits and "
+                      f"{len(selected_changed_files)} of {total_file_count} changed files._\n\n"
+                  )
+          
+              for key, title in (
+                  ("breaking_changes", "Breaking Changes"),
+                  ("features", "Features"),
+                  ("fixes", "Fixes"),
+                  ("maintenance", "Maintenance"),
+              ):
+                  entries = sections[key]
+                  if not entries:
+                      continue
+                  f.write(f"## {title}\n\n")
+                  for item in entries:
+                      f.write(f"- {item['subject']} ({item['hash']})\n")
+                  f.write("\n")
+          
+              if structured["upgrade_notes"]:
+                  f.write("## Upgrade Notes\n\n")
+                  for note in structured["upgrade_notes"]:
+                      f.write(f"- {note}\n")
+                  f.write("\n")
+          
+              f.write("## Metadata\n\n")
+              if PREV_TAG:
+                  f.write(f"- Range: {PREV_TAG} -> {TAG}\n")
+              else:
+                  f.write(f"- Range: initial release up to {TAG}\n")
+              f.write(f"- Commits analyzed: {len(selected_commits)} / {total_commit_count}\n")
+              f.write(f"- Files analyzed: {len(selected_changed_files)} / {total_file_count}\n")
+          PY
 
           echo "range=$RANGE" >> "$GITHUB_OUTPUT"
           echo "previous_tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
