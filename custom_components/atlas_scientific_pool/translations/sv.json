@@ -2,21 +2,31 @@
   "config": {
     "flow_title": "Atlas Scientific Pool",
     "step": {
-      "user": {
+      "roles": {
+        "title": "Välj poolroller",
+        "description": "Tillgängliga ESPHome-noder i Home Assistant: {discovered}",
+        "data": {
+          "pressure_enabled": "Aktivera filtertrycksroll",
+          "level_enabled": "Aktivera vattennivåroll",
+          "pump_enabled": "Aktivera poolpumpsroll",
+          "heat_pump_enabled": "Aktivera värmepumpsroll"
+        }
+      },
+      "nodes": {
         "title": "Konfigurera poolnoder",
         "description": "Tillgängliga ESPHome-noder i Home Assistant: {discovered}",
         "data": {
           "chemistry_node": "Nodnamn för kemi-ESPHome",
           "pressure_node": "Nodnamn för filtertryck-ESPHome",
           "level_node": "Nodnamn för vattennivå-ESPHome",
-          "pump_node": "Nodnamn för poolpump-ESPHome (valfritt)",
-          "heat_pump_node": "Nodnamn för värmepump-ESPHome (valfritt)"
+          "pump_node": "Nodnamn för poolpump-ESPHome",
+          "heat_pump_node": "Nodnamn för värmepump-ESPHome"
         }
       }
     },
     "error": {
       "no_esphome_nodes": "Inga ESPHome-noder hittades i Home Assistant. Lägg till dina ESPHome-enheter först.",
-      "required_nodes_missing": "Kemi-, tryck- och nivånod måste anges",
+      "required_nodes_missing": "Keminoden är obligatorisk",
       "nodes_must_be_unique": "Varje roll måste peka på en unik ESPHome-nod",
       "node_not_found": "En eller flera valda nodnamn hittades inte i ESPHome-integrationen"
     },
@@ -33,6 +43,10 @@
           "timeout": "Anslutningstimeout (sekunder)",
           "enable_controls": "Aktivera pumpreglage",
           "winter_mode": "Vinterläge (pausa reglage och automatik)",
+          "pressure_enabled": "Aktivera filtertrycksroll",
+          "level_enabled": "Aktivera vattennivåroll",
+          "pump_enabled": "Aktivera poolpumpsroll",
+          "heat_pump_enabled": "Aktivera värmepumpsroll",
           "max_chlorine_dose_ml": "Maxdos klor (ml)",
           "max_acid_dose_ml": "Maxdos syra (ml)",
           "chlorine_cooldown_seconds": "Klorkylperiod (sekunder)",

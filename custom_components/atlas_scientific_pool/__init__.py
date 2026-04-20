@@ -36,7 +36,9 @@ from .const import (
     CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
     CONF_FILL_START_BUTTON_OBJECT_ID,
     CONF_FILL_STOP_BUTTON_OBJECT_ID,
+    CONF_HEAT_PUMP_ENABLED,
     CONF_HEAT_PUMP_NODE,
+    CONF_LEVEL_ENABLED,
     CONF_LEVEL_HYSTERESIS_PERCENT,
     CONF_LEVEL_NODE,
     CONF_LEVEL_SENSOR_OBJECT_ID,
@@ -54,7 +56,9 @@ from .const import (
     CONF_PH_MIN_THRESHOLD,
     CONF_PH_SENSOR_OBJECT_ID,
     CONF_POOL_VOLUME_LITERS,
+    CONF_PRESSURE_ENABLED,
     CONF_PRESSURE_NODE,
+    CONF_PUMP_ENABLED,
     CONF_PUMP_NODE,
     CONF_PUMP_POWER_SWITCH_OBJECT_ID,
     CONF_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID,
@@ -83,6 +87,8 @@ from .const import (
     DEFAULT_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
     DEFAULT_FILL_START_BUTTON_OBJECT_ID,
     DEFAULT_FILL_STOP_BUTTON_OBJECT_ID,
+    DEFAULT_HEAT_PUMP_ENABLED,
+    DEFAULT_LEVEL_ENABLED,
     DEFAULT_LEVEL_HYSTERESIS_PERCENT,
     DEFAULT_LEVEL_SENSOR_OBJECT_ID,
     DEFAULT_MAX_ACID_DOSE_ML,
@@ -99,6 +105,8 @@ from .const import (
     DEFAULT_PH_MIN_THRESHOLD,
     DEFAULT_PH_SENSOR_OBJECT_ID,
     DEFAULT_POOL_VOLUME_LITERS,
+    DEFAULT_PRESSURE_ENABLED,
+    DEFAULT_PUMP_ENABLED,
     DEFAULT_PUMP_POWER_SWITCH_OBJECT_ID,
     DEFAULT_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID,
     DEFAULT_PUMP_SPEED_LOW_SWITCH_OBJECT_ID,
@@ -162,13 +170,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     dev_reg = dr.async_get(hass)
 
     clients: dict[str, HANodeClient] = {}
-    for conf_key, role, required in (
-        (CONF_CHEMISTRY_NODE, ROLE_CHEMISTRY, True),
-        (CONF_PRESSURE_NODE, ROLE_PRESSURE, True),
-        (CONF_LEVEL_NODE, ROLE_LEVEL, True),
-        (CONF_PUMP_NODE, ROLE_PUMP, False),
-        (CONF_HEAT_PUMP_NODE, ROLE_HEAT_PUMP, False),
+    for conf_key, role, required, enabled_key, default_enabled in (
+        (CONF_CHEMISTRY_NODE, ROLE_CHEMISTRY, True, None, True),
+        (CONF_PRESSURE_NODE, ROLE_PRESSURE, False, CONF_PRESSURE_ENABLED, DEFAULT_PRESSURE_ENABLED),
+        (CONF_LEVEL_NODE, ROLE_LEVEL, False, CONF_LEVEL_ENABLED, DEFAULT_LEVEL_ENABLED),
+        (CONF_PUMP_NODE, ROLE_PUMP, False, CONF_PUMP_ENABLED, DEFAULT_PUMP_ENABLED),
+        (CONF_HEAT_PUMP_NODE, ROLE_HEAT_PUMP, False, CONF_HEAT_PUMP_ENABLED, DEFAULT_HEAT_PUMP_ENABLED),
     ):
+        # Check if this role is enabled (chemistry is always enabled)
+        if enabled_key is not None:
+            if not bool(options.get(enabled_key, default_enabled)):
+                continue
+
         node_name = str(options.get(conf_key, "")).strip()
         if not node_name:
             if required:
@@ -191,9 +204,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         clients[role] = HANodeClient(hass, role, devices[0])
 
+    enabled_roles = {
+        ROLE_CHEMISTRY: True,
+        ROLE_PRESSURE: bool(options.get(CONF_PRESSURE_ENABLED, DEFAULT_PRESSURE_ENABLED)),
+        ROLE_LEVEL: bool(options.get(CONF_LEVEL_ENABLED, DEFAULT_LEVEL_ENABLED)),
+        ROLE_PUMP: bool(options.get(CONF_PUMP_ENABLED, DEFAULT_PUMP_ENABLED)),
+        ROLE_HEAT_PUMP: bool(options.get(CONF_HEAT_PUMP_ENABLED, DEFAULT_HEAT_PUMP_ENABLED)),
+    }
+
     coordinator = AtlasScientificPoolCoordinator(
         hass,
         clients=clients,
+        enabled_roles=enabled_roles,
         update_interval=timedelta(
             seconds=int(options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
         ),

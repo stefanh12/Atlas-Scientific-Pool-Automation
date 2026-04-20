@@ -62,6 +62,7 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         update_interval: timedelta,
         safety: SafetyConfig,
         command_map: NodeCommandMap,
+        enabled_roles: dict[str, bool] | None = None,
     ) -> None:
         super().__init__(
             hass,
@@ -73,6 +74,7 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
 
         self._clients: dict[str, Any] = dict(clients)
+        self._enabled_roles = enabled_roles or {}
 
         self._safety = safety
         self._command_map = command_map
@@ -721,6 +723,9 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         automation["dose_ml"] = self._chlorine_target_ml
 
     def node_available(self, role: str) -> bool:
+        # Check if role is enabled (if not in enabled_roles dict, assume enabled for backward compat)
+        if self._enabled_roles and not self._enabled_roles.get(role, True):
+            return False
         node = self.data.get("nodes", {}).get(role, {}) if self.data else {}
         return bool(node.get("available"))
 

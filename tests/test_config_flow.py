@@ -9,7 +9,11 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.atlas_scientific_pool.config_flow import _build_discovery_map
 from custom_components.atlas_scientific_pool.const import (
+    CONF_HEAT_PUMP_ENABLED,
     CONF_HEAT_PUMP_NODE,
+    CONF_LEVEL_ENABLED,
+    CONF_PRESSURE_ENABLED,
+    CONF_PUMP_ENABLED,
     CONF_PUMP_NODE,
     DOMAIN,
 )
@@ -29,8 +33,21 @@ async def test_user_flow_success(
         context={"source": config_entries.SOURCE_USER},
     )
     assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "roles"
 
     result2 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_PRESSURE_ENABLED: True,
+            CONF_LEVEL_ENABLED: True,
+            CONF_PUMP_ENABLED: False,
+            CONF_HEAT_PUMP_ENABLED: False,
+        },
+    )
+    assert result2["type"] == FlowResultType.FORM
+    assert result2["step_id"] == "nodes"
+
+    result3 = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {
             "chemistry_node": "pool-ezo",
@@ -39,11 +56,11 @@ async def test_user_flow_success(
         },
     )
 
-    assert result2["type"] == FlowResultType.CREATE_ENTRY
-    assert result2["title"] == "Pool (pool-ezo)"
-    assert result2["options"]["max_fill_runtime_minutes"] == 45
-    assert result2["options"]["expose_raw_pump_switches"] is False
-    assert result2["options"]["enable_pump_speed_abstraction"] is True
+    assert result3["type"] == FlowResultType.CREATE_ENTRY
+    assert result3["title"] == "Pool (pool-ezo)"
+    assert result3["options"]["max_fill_runtime_minutes"] == 45
+    assert result3["options"]["expose_raw_pump_switches"] is False
+    assert result3["options"]["enable_pump_speed_abstraction"] is True
 
 
 async def test_user_flow_rejects_duplicate_nodes(
@@ -63,14 +80,105 @@ async def test_user_flow_rejects_duplicate_nodes(
     result2 = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {
+            CONF_PRESSURE_ENABLED: True,
+            CONF_LEVEL_ENABLED: True,
+            CONF_PUMP_ENABLED: False,
+            CONF_HEAT_PUMP_ENABLED: False,
+        },
+    )
+    assert result2["type"] == FlowResultType.FORM
+    assert result2["step_id"] == "nodes"
+
+    result3 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
             "chemistry_node": "same-node",
             "pressure_node": "same-node",
             "level_node": "other-node",
         },
     )
 
+    assert result3["type"] == FlowResultType.FORM
+    assert result3["errors"]["base"] == "nodes_must_be_unique"
+
+
+async def test_user_flow_allows_enabled_roles_without_node_names(
+    hass: HomeAssistant,
+    enable_custom_integrations: bool,
+) -> None:
+    """Only chemistry node is required for onboarding."""
+    del enable_custom_integrations
+    MockConfigEntry(domain="esphome", title="pool-ezo").add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_USER},
+    )
+
+    result2 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_PRESSURE_ENABLED: True,
+            CONF_LEVEL_ENABLED: True,
+            CONF_PUMP_ENABLED: True,
+            CONF_HEAT_PUMP_ENABLED: True,
+        },
+    )
+
+    result3 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            "chemistry_node": "pool-ezo",
+            "pressure_node": "",
+            "level_node": "",
+            "pump_node": "",
+            "heat_pump_node": "",
+        },
+    )
+
     assert result2["type"] == FlowResultType.FORM
-    assert result2["errors"]["base"] == "nodes_must_be_unique"
+    assert result2["step_id"] == "nodes"
+    assert result3["type"] == FlowResultType.CREATE_ENTRY
+    assert result3["data"]["chemistry_node"] == "pool-ezo"
+
+
+async def test_user_flow_chemistry_only_keeps_other_roles_disabled(
+    hass: HomeAssistant,
+    enable_custom_integrations: bool,
+) -> None:
+    """Choosing only chemistry should persist all optional roles as disabled."""
+    del enable_custom_integrations
+    MockConfigEntry(domain="esphome", title="pool-ezo").add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_USER},
+    )
+
+    result2 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_PRESSURE_ENABLED: False,
+            CONF_LEVEL_ENABLED: False,
+            CONF_PUMP_ENABLED: False,
+            CONF_HEAT_PUMP_ENABLED: False,
+        },
+    )
+
+    result3 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            "chemistry_node": "pool-ezo",
+        },
+    )
+
+    assert result2["type"] == FlowResultType.FORM
+    assert result2["step_id"] == "nodes"
+    assert result3["type"] == FlowResultType.CREATE_ENTRY
+    assert result3["data"][CONF_PRESSURE_ENABLED] is False
+    assert result3["data"][CONF_LEVEL_ENABLED] is False
+    assert result3["data"][CONF_PUMP_ENABLED] is False
+    assert result3["data"][CONF_HEAT_PUMP_ENABLED] is False
 
 
 def test_discovery_map_prefers_brilix_for_heat_pump() -> None:

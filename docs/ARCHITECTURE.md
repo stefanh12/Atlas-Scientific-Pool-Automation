@@ -15,7 +15,7 @@ Atlas Scientific Pool is a Home Assistant custom integration that aggregates mul
 1. `async_setup_entry` in `custom_components/atlas_scientific_pool/__init__.py`:
    - merges entry data and options
    - resolves ESPHome entries by node name
-   - builds one `HANodeClient` per role
+   - builds one `HANodeClient` per enabled role
    - creates `AtlasScientificPoolCoordinator`
    - stores coordinator in `hass.data[DOMAIN][entry.entry_id]`
    - forwards setup to all platforms
@@ -38,13 +38,15 @@ Atlas Scientific Pool is a Home Assistant custom integration that aggregates mul
 Required roles:
 
 - chemistry
-- pressure
-- level
 
 Optional roles:
 
+- pressure
+- level
 - pump
 - heat_pump
+
+During onboarding, the config flow stores a per-role enabled flag for each optional role. Disabled roles are not bound to ESPHome devices during setup and their entities are omitted because coordinator availability returns false for those roles.
 
 Role routing and role constants are defined in `custom_components/atlas_scientific_pool/const.py`.
 
@@ -113,7 +115,7 @@ Change impact:
 
 Inputs:
 
-- user-selected node names
+- user-selected enabled roles and node names
 - Home Assistant ESPHome config entries
 
 Outputs:
@@ -123,7 +125,7 @@ Outputs:
 
 Change impact:
 
-- role discovery and duplicate-node validation must remain deterministic
+- role discovery, enabled-role gating, and duplicate-node validation must remain deterministic
 
 ### Platform modules (`sensor.py`, `number.py`, `button.py`, `binary_sensor.py`, `switch.py`, `select.py`)
 

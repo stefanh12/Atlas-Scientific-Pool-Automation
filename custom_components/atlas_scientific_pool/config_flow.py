@@ -43,7 +43,9 @@ from .const import (
     CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
     CONF_FILL_START_BUTTON_OBJECT_ID,
     CONF_FILL_STOP_BUTTON_OBJECT_ID,
+    CONF_HEAT_PUMP_ENABLED,
     CONF_HEAT_PUMP_NODE,
+    CONF_LEVEL_ENABLED,
     CONF_LEVEL_HYSTERESIS_PERCENT,
     CONF_LEVEL_NODE,
     CONF_LEVEL_SENSOR_OBJECT_ID,
@@ -61,7 +63,9 @@ from .const import (
     CONF_PH_MIN_THRESHOLD,
     CONF_PH_SENSOR_OBJECT_ID,
     CONF_POOL_VOLUME_LITERS,
+    CONF_PRESSURE_ENABLED,
     CONF_PRESSURE_NODE,
+    CONF_PUMP_ENABLED,
     CONF_PUMP_NODE,
     CONF_PUMP_POWER_SWITCH_OBJECT_ID,
     CONF_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID,
@@ -92,6 +96,8 @@ from .const import (
     DEFAULT_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
     DEFAULT_FILL_START_BUTTON_OBJECT_ID,
     DEFAULT_FILL_STOP_BUTTON_OBJECT_ID,
+    DEFAULT_HEAT_PUMP_ENABLED,
+    DEFAULT_LEVEL_ENABLED,
     DEFAULT_LEVEL_HYSTERESIS_PERCENT,
     DEFAULT_LEVEL_SENSOR_OBJECT_ID,
     DEFAULT_MAX_ACID_DOSE_ML,
@@ -108,6 +114,8 @@ from .const import (
     DEFAULT_PH_MIN_THRESHOLD,
     DEFAULT_PH_SENSOR_OBJECT_ID,
     DEFAULT_POOL_VOLUME_LITERS,
+    DEFAULT_PRESSURE_ENABLED,
+    DEFAULT_PUMP_ENABLED,
     DEFAULT_PUMP_POWER_SWITCH_OBJECT_ID,
     DEFAULT_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID,
     DEFAULT_PUMP_SPEED_LOW_SWITCH_OBJECT_ID,
@@ -120,31 +128,70 @@ from .const import (
 )
 
 
-def _node_schema(defaults: dict[str, Any]) -> vol.Schema:
+def _roles_schema(defaults: dict[str, Any]) -> vol.Schema:
     return vol.Schema(
         {
             vol.Required(
-                CONF_CHEMISTRY_NODE,
-                default=defaults.get(CONF_CHEMISTRY_NODE, ""),
-            ): str,
+                CONF_PRESSURE_ENABLED,
+                default=defaults.get(CONF_PRESSURE_ENABLED, DEFAULT_PRESSURE_ENABLED),
+            ): bool,
+            vol.Required(
+                CONF_LEVEL_ENABLED,
+                default=defaults.get(CONF_LEVEL_ENABLED, DEFAULT_LEVEL_ENABLED),
+            ): bool,
+            vol.Required(
+                CONF_PUMP_ENABLED,
+                default=defaults.get(CONF_PUMP_ENABLED, DEFAULT_PUMP_ENABLED),
+            ): bool,
+            vol.Required(
+                CONF_HEAT_PUMP_ENABLED,
+                default=defaults.get(CONF_HEAT_PUMP_ENABLED, DEFAULT_HEAT_PUMP_ENABLED),
+            ): bool,
+        }
+    )
+
+
+def _node_schema(defaults: dict[str, Any]) -> vol.Schema:
+    schema: dict[vol.Marker, type[str]] = {
+        vol.Required(
+            CONF_CHEMISTRY_NODE,
+            default=defaults.get(CONF_CHEMISTRY_NODE, ""),
+        ): str,
+    }
+
+    if defaults.get(CONF_PRESSURE_ENABLED, DEFAULT_PRESSURE_ENABLED):
+        schema[
             vol.Required(
                 CONF_PRESSURE_NODE,
                 default=defaults.get(CONF_PRESSURE_NODE, ""),
-            ): str,
+            )
+        ] = str
+
+    if defaults.get(CONF_LEVEL_ENABLED, DEFAULT_LEVEL_ENABLED):
+        schema[
             vol.Required(
                 CONF_LEVEL_NODE,
                 default=defaults.get(CONF_LEVEL_NODE, ""),
-            ): str,
+            )
+        ] = str
+
+    if defaults.get(CONF_PUMP_ENABLED, DEFAULT_PUMP_ENABLED):
+        schema[
             vol.Optional(
                 CONF_PUMP_NODE,
                 default=defaults.get(CONF_PUMP_NODE, ""),
-            ): str,
+            )
+        ] = str
+
+    if defaults.get(CONF_HEAT_PUMP_ENABLED, DEFAULT_HEAT_PUMP_ENABLED):
+        schema[
             vol.Optional(
                 CONF_HEAT_PUMP_NODE,
                 default=defaults.get(CONF_HEAT_PUMP_NODE, ""),
-            ): str,
-        }
-    )
+            )
+        ] = str
+
+    return vol.Schema(schema)
 
 
 def _normalize_node_name(value: str | None) -> str:
@@ -234,6 +281,22 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(
                 CONF_WINTER_MODE,
                 default=defaults.get(CONF_WINTER_MODE, DEFAULT_WINTER_MODE),
+            ): bool,
+            vol.Required(
+                CONF_PUMP_ENABLED,
+                default=defaults.get(CONF_PUMP_ENABLED, DEFAULT_PUMP_ENABLED),
+            ): bool,
+            vol.Required(
+                CONF_HEAT_PUMP_ENABLED,
+                default=defaults.get(CONF_HEAT_PUMP_ENABLED, DEFAULT_HEAT_PUMP_ENABLED),
+            ): bool,
+            vol.Required(
+                CONF_PRESSURE_ENABLED,
+                default=defaults.get(CONF_PRESSURE_ENABLED, DEFAULT_PRESSURE_ENABLED),
+            ): bool,
+            vol.Required(
+                CONF_LEVEL_ENABLED,
+                default=defaults.get(CONF_LEVEL_ENABLED, DEFAULT_LEVEL_ENABLED),
             ): bool,
             vol.Required(
                 CONF_MAX_CHLORINE_DOSE_ML,
@@ -547,9 +610,52 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
         node_name = _normalize_node_name(getattr(discovery_info, "name", ""))
         if node_name:
             self._discovered_nodes.add(node_name)
-        return await self.async_step_user()
+        return await self.async_step_roles()
 
     async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Compatibility entrypoint: redirect to roles-first onboarding."""
+        return await self.async_step_roles(user_input)
+
+    async def async_step_roles(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Step 1: Select which optional roles are present."""
+        esphome_entries = self.hass.config_entries.async_entries("esphome")
+        available_nodes = sorted({entry.title for entry in esphome_entries if entry.title})
+        discovered_nodes = sorted(self._discovered_nodes)
+        discovery_candidates = list(dict.fromkeys([*discovered_nodes, *available_nodes]))
+        discovery_map = _build_discovery_map(discovery_candidates)
+
+        defaults = dict(self._user_input)
+        defaults.setdefault(CONF_PUMP_ENABLED, discovery_map.get(CONF_PUMP_NODE, "") != "")
+        defaults.setdefault(CONF_HEAT_PUMP_ENABLED, discovery_map.get(CONF_HEAT_PUMP_NODE, "") != "")
+        defaults.setdefault(CONF_PRESSURE_ENABLED, True)
+        defaults.setdefault(CONF_LEVEL_ENABLED, True)
+
+        if user_input is not None:
+            self._user_input.update(
+                {
+                    # Treat absent keys as unchecked to avoid carrying previous true values.
+                    CONF_PRESSURE_ENABLED: bool(user_input.get(CONF_PRESSURE_ENABLED, False)),
+                    CONF_LEVEL_ENABLED: bool(user_input.get(CONF_LEVEL_ENABLED, False)),
+                    CONF_PUMP_ENABLED: bool(user_input.get(CONF_PUMP_ENABLED, False)),
+                    CONF_HEAT_PUMP_ENABLED: bool(user_input.get(CONF_HEAT_PUMP_ENABLED, False)),
+                }
+            )
+            return await self.async_step_nodes()
+
+        return self.async_show_form(
+            step_id="roles",
+            data_schema=_roles_schema(defaults),
+            errors={},
+            description_placeholders={
+                "discovered": ", ".join(available_nodes or discovered_nodes) or "none"
+            },
+        )
+
+    async def async_step_nodes(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Map pool roles to existing Home Assistant ESPHome nodes."""
@@ -567,33 +673,61 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
         defaults = dict(self._user_input)
         for conf_key, _role in _ROLE_CONF_MAP:
             defaults.setdefault(conf_key, discovery_map.get(conf_key, ""))
+        defaults.setdefault(CONF_PUMP_ENABLED, discovery_map.get(CONF_PUMP_NODE, "") != "")
+        defaults.setdefault(CONF_HEAT_PUMP_ENABLED, discovery_map.get(CONF_HEAT_PUMP_NODE, "") != "")
+        defaults.setdefault(CONF_PRESSURE_ENABLED, True)
+        defaults.setdefault(CONF_LEVEL_ENABLED, True)
 
         if user_input is not None:
             normalized_input = {
                 CONF_CHEMISTRY_NODE: _normalize_node_name(user_input.get(CONF_CHEMISTRY_NODE)),
-                CONF_PRESSURE_NODE: _normalize_node_name(user_input.get(CONF_PRESSURE_NODE)),
-                CONF_LEVEL_NODE: _normalize_node_name(user_input.get(CONF_LEVEL_NODE)),
-                CONF_PUMP_NODE: _normalize_node_name(user_input.get(CONF_PUMP_NODE)),
-                CONF_HEAT_PUMP_NODE: _normalize_node_name(user_input.get(CONF_HEAT_PUMP_NODE)),
+                CONF_PRESSURE_NODE: _normalize_node_name(
+                    user_input.get(CONF_PRESSURE_NODE, defaults.get(CONF_PRESSURE_NODE, ""))
+                ),
+                CONF_PRESSURE_ENABLED: bool(defaults.get(CONF_PRESSURE_ENABLED, True)),
+                CONF_LEVEL_NODE: _normalize_node_name(
+                    user_input.get(CONF_LEVEL_NODE, defaults.get(CONF_LEVEL_NODE, ""))
+                ),
+                CONF_LEVEL_ENABLED: bool(defaults.get(CONF_LEVEL_ENABLED, True)),
+                CONF_PUMP_NODE: _normalize_node_name(
+                    user_input.get(CONF_PUMP_NODE, defaults.get(CONF_PUMP_NODE, ""))
+                ),
+                CONF_PUMP_ENABLED: bool(defaults.get(CONF_PUMP_ENABLED, False)),
+                CONF_HEAT_PUMP_NODE: _normalize_node_name(
+                    user_input.get(CONF_HEAT_PUMP_NODE, defaults.get(CONF_HEAT_PUMP_NODE, ""))
+                ),
+                CONF_HEAT_PUMP_ENABLED: bool(defaults.get(CONF_HEAT_PUMP_ENABLED, False)),
             }
             self._user_input = normalized_input
 
-            required = [
-                normalized_input[CONF_CHEMISTRY_NODE],
-                normalized_input[CONF_PRESSURE_NODE],
-                normalized_input[CONF_LEVEL_NODE],
+            selected: list[str] = [str(normalized_input[CONF_CHEMISTRY_NODE])]
+            enabled_node_values: list[str | None] = [
+                str(normalized_input[CONF_PRESSURE_NODE])
+                if normalized_input.get(CONF_PRESSURE_ENABLED)
+                else None,
+                str(normalized_input[CONF_LEVEL_NODE])
+                if normalized_input.get(CONF_LEVEL_ENABLED)
+                else None,
+                str(normalized_input[CONF_PUMP_NODE])
+                if normalized_input.get(CONF_PUMP_ENABLED)
+                else None,
+                str(normalized_input[CONF_HEAT_PUMP_NODE])
+                if normalized_input.get(CONF_HEAT_PUMP_ENABLED)
+                else None,
             ]
-            optional = [
-                normalized_input[CONF_PUMP_NODE],
-                normalized_input[CONF_HEAT_PUMP_NODE],
-            ]
-            selected = [name for name in [*required, *optional] if name]
 
-            if any(not name for name in required):
+            if not normalized_input[CONF_CHEMISTRY_NODE]:
                 errors["base"] = "required_nodes_missing"
-            elif len(set(selected)) != len(selected):
-                errors["base"] = "nodes_must_be_unique"
             else:
+                selected.extend(
+                    node_name
+                    for node_name in enabled_node_values
+                    if node_name is not None and node_name != ""
+                )
+
+            if not errors and len(set(selected)) != len(selected):
+                errors["base"] = "nodes_must_be_unique"
+            elif not errors:
                 unresolved = [
                     name
                     for name in selected
@@ -664,7 +798,7 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
                     )
 
         return self.async_show_form(
-            step_id="user",
+            step_id="nodes",
             data_schema=_node_schema(defaults),
             errors=errors,
             description_placeholders={

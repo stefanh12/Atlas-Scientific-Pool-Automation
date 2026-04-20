@@ -32,7 +32,7 @@ Each invariant includes:
 
 4. Pool pump interlock is mandatory for chemical dosing
 
-- Rule: if pump role is configured, chlorine/acid dosing must be blocked unless pump is running.
+- Rule: if pump role is enabled and configured, chlorine/acid dosing must be blocked unless pump is running.
 - Why: avoid dosing without circulation.
 - Verify: `test_safeguard_blocks_chlorine_when_pool_pump_not_running`, `test_safeguard_blocks_acid_when_pool_pump_not_running`.
 

@@ -210,6 +210,67 @@ def coordinator(hass: HomeAssistant) -> AtlasScientificPoolCoordinator:
     return coord
 
 
+def test_node_available_respects_enabled_roles(hass: HomeAssistant) -> None:
+    """Disabled roles should report unavailable even if data says they are up."""
+    coord = AtlasScientificPoolCoordinator(
+        hass,
+        clients={},
+        enabled_roles={ROLE_PRESSURE: False},
+        update_interval=timedelta(seconds=30),
+        safety=SafetyConfig(
+            controls_enabled=True,
+            winter_mode=False,
+            max_chlorine_dose_ml=150,
+            max_acid_dose_ml=100,
+            chlorine_cooldown_seconds=1800,
+            acid_cooldown_seconds=1800,
+            default_chlorine_dose_ml=50,
+            default_acid_dose_ml=50,
+            enable_orp_automation=True,
+            default_target_orp=700,
+            orp_sensor_object_id="orp",
+            orp_hysteresis_mv=15,
+            enable_level_automation=True,
+            default_target_water_level_percent=85,
+            level_hysteresis_percent=3,
+            level_sensor_object_id="pool_level",
+            max_fill_runtime_minutes=45,
+            pool_volume_liters=50000,
+            chlorine_strength_percent=12.5,
+            max_ppm_increase_per_dose=0.3,
+            acid_strength_percent=31.45,
+            max_ph_drop_per_dose=0.1,
+            enable_notifications=True,
+            notify_service="",
+            ph_sensor_object_id="ph",
+            ph_min_threshold=7.2,
+            ph_max_threshold=7.8,
+            orp_alert_threshold=600.0,
+            notification_cooldown_minutes=60,
+        ),
+        command_map=NodeCommandMap(
+            chlorine_volume_number="volume_cl",
+            acid_volume_number="volume_acid",
+            chlorine_dose_button="dose_chlorine",
+            acid_dose_button="dose_acid",
+            chlorine_stop_button="stop_chlorine",
+            acid_stop_button="stop_acid",
+            chlorine_running_binary_sensor="pump_cl_state",
+            acid_running_binary_sensor="pump_acid_state",
+            fill_start_button_object_id="fill_start",
+            fill_stop_button_object_id="fill_stop",
+            fill_running_binary_sensor_object_id="fill_running",
+            pump_power_switch_object_id="relay4",
+            pump_speed_low_switch_object_id="relay3",
+            pump_speed_medium_switch_object_id="relay2",
+            pump_speed_high_switch_object_id="relay1",
+        ),
+    )
+    coord.data = {"nodes": {ROLE_PRESSURE: {"available": True, "states": {}}}}
+
+    assert coord.node_available(ROLE_PRESSURE) is False
+
+
 async def test_chlorine_dose_calls_number_and_button(
     coordinator: AtlasScientificPoolCoordinator,
 ) -> None:

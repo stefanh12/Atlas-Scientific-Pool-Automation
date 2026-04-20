@@ -29,6 +29,7 @@
         "pushd": true,
         "python3.12": true,
         "popd": true,
-        "ruff": true
+        "ruff": true,
+        ".venv/bin/pip": true
     }
 }

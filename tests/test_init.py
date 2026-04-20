@@ -64,6 +64,10 @@ async def test_setup_entry_creates_coordinator(hass: HomeAssistant) -> None:
             "scan_interval": 30,
             "timeout": 10,
             "enable_controls": True,
+            "pressure_enabled": True,
+            "level_enabled": True,
+            "pump_enabled": False,
+            "heat_pump_enabled": False,
             "enable_orp_automation": True,
             "default_target_orp": 700,
             "orp_hysteresis_mv": 15,
@@ -120,6 +124,10 @@ async def test_setup_entry_creates_coordinator(hass: HomeAssistant) -> None:
         assert await atlas_init.async_setup_entry(hass, mock_config_entry)
 
     assert mock_config_entry.entry_id in hass.data[DOMAIN]
+    assert coordinator_cls.call_args.kwargs["enabled_roles"]["pressure"] is True
+    assert coordinator_cls.call_args.kwargs["enabled_roles"]["level"] is True
+    assert coordinator_cls.call_args.kwargs["enabled_roles"]["pump"] is False
+    assert coordinator_cls.call_args.kwargs["enabled_roles"]["heat_pump"] is False
 
 
 async def test_setup_entry_requires_required_node_name(hass: HomeAssistant) -> None:
@@ -151,6 +159,52 @@ async def test_setup_entry_requires_matching_esphome_entry(hass: HomeAssistant) 
 
     with pytest.raises(ConfigEntryNotReady, match="pool-ezo"):
         await atlas_init.async_setup_entry(hass, entry)
+
+
+async def test_setup_entry_skips_disabled_optional_roles(hass: HomeAssistant) -> None:
+    """Disabled roles should not require ESPHome bindings at setup time."""
+    chemistry_entry = MockConfigEntry(
+        domain="esphome",
+        title="pool-ezo",
+        data={"host": "pool-ezo.local", "port": 6053, "noise_psk": "a"},
+    )
+    chemistry_entry.add_to_hass(hass)
+
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_or_create(
+        config_entry_id=chemistry_entry.entry_id,
+        identifiers={("esphome", "pool_ezo")},
+        name="pool-ezo",
+    )
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "chemistry_node": "pool-ezo",
+            "pressure_enabled": False,
+            "level_enabled": False,
+            "pump_enabled": False,
+            "heat_pump_enabled": False,
+        },
+    )
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.atlas_scientific_pool.HANodeClient"
+    ) as node_client_cls, patch(
+        "custom_components.atlas_scientific_pool.AtlasScientificPoolCoordinator"
+    ) as coordinator_cls, patch.object(
+        hass.config_entries,
+        "async_forward_entry_setups",
+        new=AsyncMock(),
+    ):
+        node_client_cls.return_value = object()
+        coordinator = coordinator_cls.return_value
+        coordinator.async_config_entry_first_refresh = AsyncMock()
+
+        assert await atlas_init.async_setup_entry(hass, entry)
+
+    node_client_cls.assert_called_once_with(hass, "chemistry", device)
 
 
 async def test_setup_entry_requires_esphome_device_registration(hass: HomeAssistant) -> None:

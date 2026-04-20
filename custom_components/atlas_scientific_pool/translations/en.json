@@ -2,21 +2,31 @@
   "config": {
     "flow_title": "Atlas Scientific Pool",
     "step": {
-      "user": {
+      "roles": {
+        "title": "Select pool roles",
+        "description": "Available ESPHome nodes in Home Assistant: {discovered}",
+        "data": {
+          "pressure_enabled": "Enable filter pressure role",
+          "level_enabled": "Enable water level role",
+          "pump_enabled": "Enable pool pump role",
+          "heat_pump_enabled": "Enable heat pump role"
+        }
+      },
+      "nodes": {
         "title": "Configure pool nodes",
         "description": "Available ESPHome nodes in Home Assistant: {discovered}",
         "data": {
           "chemistry_node": "Chemistry ESPHome node name",
           "pressure_node": "Filter pressure ESPHome node name",
           "level_node": "Water level ESPHome node name",
-          "pump_node": "Pool pump ESPHome node name (optional)",
-          "heat_pump_node": "Heat pump ESPHome node name (optional)"
+          "pump_node": "Pool pump ESPHome node name",
+          "heat_pump_node": "Heat pump ESPHome node name"
         }
       }
     },
     "error": {
       "no_esphome_nodes": "No ESPHome nodes were found in Home Assistant. Add your ESPHome devices first.",
-      "required_nodes_missing": "Chemistry, pressure, and level nodes are required",
+      "required_nodes_missing": "Chemistry node is required",
       "nodes_must_be_unique": "Each role must point to a unique ESPHome node",
       "node_not_found": "One or more selected node names were not found in the ESPHome integration"
     },
@@ -33,6 +43,10 @@
           "timeout": "Connection timeout (seconds)",
           "enable_controls": "Enable pump controls",
           "winter_mode": "Winter mode (pause controls and automations)",
+          "pressure_enabled": "Enable filter pressure role",
+          "level_enabled": "Enable water level role",
+          "pump_enabled": "Enable pool pump role",
+          "heat_pump_enabled": "Enable heat pump role",
           "max_chlorine_dose_ml": "Maximum chlorine dose (ml)",
           "max_acid_dose_ml": "Maximum acid dose (ml)",
           "chlorine_cooldown_seconds": "Chlorine cooldown (seconds)",

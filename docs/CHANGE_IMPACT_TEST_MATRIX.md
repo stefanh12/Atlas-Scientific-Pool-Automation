@@ -72,6 +72,7 @@ Examples:
 
 - `_build_discovery_map`
 - user flow schemas
+- role enable toggles
 - duplicate-node validation
 
 Required tests:
