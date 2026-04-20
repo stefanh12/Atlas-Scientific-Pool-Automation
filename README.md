@@ -2,6 +2,20 @@
 
 A Home Assistant custom integration (HACS-ready) that connects directly to multiple ESPHome nodes for complete pool automation: chemistry dosing, filter pressure, water-level refill, pool pump speed control, and heat-pump control.
 
+## Developer and AI worker docs
+
+For internal architecture, safety invariants, and required verification workflow, see:
+
+- `docs/README.md`
+- `docs/AI_WORKER_PLAYBOOK.md`
+- `docs/SAFETY_INVARIANTS.md`
+- `docs/CHANGE_IMPACT_TEST_MATRIX.md`
+
+Contributor process:
+
+- `.github/CONTRIBUTING.md`
+- `.github/pull_request_template.md`
+
 ## Hardware overview
 
 | Node                 | ESPHome file                        | Purpose                                                  |

@@ -1,0 +1,73 @@
+name: Safety Guardrails
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  safety-guardrails:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r requirements_test.txt
+
+      - name: Detect safety-critical changes
+        id: detect
+        run: |
+          set -euo pipefail
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.sha }}"
+          CHANGED_FILES="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
+
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+          SAFETY_REGEX='^(custom_components/atlas_scientific_pool/(coordinator\.py|models\.py|const\.py|config_flow\.py|__init__\.py|esphome_api\.py|sensor\.py|number\.py|button\.py|binary_sensor\.py|switch\.py|select\.py)|\.github/copilot-instructions\.md|\.github/CONTRIBUTING\.md|\.github/pull_request_template\.md|docs/(SAFETY_INVARIANTS\.md|ARCHITECTURE\.md|CHANGE_IMPACT_TEST_MATRIX\.md|AI_WORKER_PLAYBOOK\.md|decisions/.*))$'
+          DOCS_REGEX='^(docs/(SAFETY_INVARIANTS\.md|ARCHITECTURE\.md|CHANGE_IMPACT_TEST_MATRIX\.md|AI_WORKER_PLAYBOOK\.md|decisions/.*)|\.github/(CONTRIBUTING\.md|pull_request_template\.md|copilot-instructions\.md))$'
+
+          safety_changed=false
+          docs_updated=false
+
+          if echo "$CHANGED_FILES" | grep -E "$SAFETY_REGEX" >/dev/null 2>&1; then
+            safety_changed=true
+          fi
+
+          if echo "$CHANGED_FILES" | grep -E "$DOCS_REGEX" >/dev/null 2>&1; then
+            docs_updated=true
+          fi
+
+          echo "safety_changed=$safety_changed" >> "$GITHUB_OUTPUT"
+          echo "docs_updated=$docs_updated" >> "$GITHUB_OUTPUT"
+
+      - name: Require docs update for safety-critical changes
+        if: steps.detect.outputs.safety_changed == 'true' && steps.detect.outputs.docs_updated != 'true'
+        run: |
+          echo "Safety-critical files changed but no safety/governance documentation was updated."
+          echo "Update one or more of: docs/SAFETY_INVARIANTS.md, docs/ARCHITECTURE.md, docs/CHANGE_IMPACT_TEST_MATRIX.md, docs/AI_WORKER_PLAYBOOK.md, docs/decisions/*, .github/CONTRIBUTING.md, .github/pull_request_template.md, .github/copilot-instructions.md"
+          exit 1
+
+      - name: Run safety regression suite
+        if: steps.detect.outputs.safety_changed == 'true'
+        run: |
+          pytest \
+            tests/test_coordinator.py \
+            tests/test_platform_entities.py \
+            tests/test_config_flow.py \
+            tests/test_switch.py \
+            tests/test_button.py \
+            tests/test_diagnostics.py \
+            tests/test_init.py \
+            tests/test_esphome_api.py

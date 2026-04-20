@@ -1,0 +1,29 @@
+# Default owner
+
+- @stefanh12
+
+# Safety-critical integration logic
+
+/custom_components/atlas_scientific_pool/coordinator.py @stefanh12
+/custom_components/atlas_scientific_pool/models.py @stefanh12
+/custom_components/atlas_scientific_pool/const.py @stefanh12
+/custom_components/atlas_scientific_pool/config_flow.py @stefanh12
+/custom_components/atlas_scientific_pool/**init**.py @stefanh12
+/custom_components/atlas_scientific_pool/esphome_api.py @stefanh12
+/custom_components/atlas_scientific_pool/sensor.py @stefanh12
+/custom_components/atlas_scientific_pool/number.py @stefanh12
+/custom_components/atlas_scientific_pool/button.py @stefanh12
+/custom_components/atlas_scientific_pool/binary_sensor.py @stefanh12
+/custom_components/atlas_scientific_pool/switch.py @stefanh12
+/custom_components/atlas_scientific_pool/select.py @stefanh12
+
+# Governance and safety documentation
+
+/.github/copilot-instructions.md @stefanh12
+/.github/CONTRIBUTING.md @stefanh12
+/.github/pull_request_template.md @stefanh12
+/docs/SAFETY_INVARIANTS.md @stefanh12
+/docs/ARCHITECTURE.md @stefanh12
+/docs/CHANGE_IMPACT_TEST_MATRIX.md @stefanh12
+/docs/AI_WORKER_PLAYBOOK.md @stefanh12
+/docs/decisions/\*\* @stefanh12
