@@ -2,6 +2,12 @@
 
 Describe what changed and why.
 
+## Release notes quality hints
+
+- Use clear commit subjects with scope (example: `fix(coordinator): block chlorine dose when acid pump is running`).
+- If this changes behavior or upgrade expectations, include that detail in commit body text.
+- If this is breaking, mark it explicitly with `BREAKING CHANGE:`.
+
 ## Change type
 
 - [ ] Bug fix
