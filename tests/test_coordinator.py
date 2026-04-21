@@ -518,6 +518,34 @@ async def test_water_level_automation_starts_fill_when_low(
     assert data["water_level_automation"]["action"] == "fill_started"
 
 
+async def test_water_level_automation_uses_fill_switch_when_configured(
+    coordinator: AtlasScientificPoolCoordinator,
+) -> None:
+    """Water-level automation should use a configured native fill switch."""
+    fill_client = FakeClient()
+    fill_client.available = True
+    fill_client.switch_object_ids = ["valve_state"]
+    fill_client.states = {"valve_state": False}
+    coordinator._fill_client = fill_client
+    coordinator._command_map.fill_switch_object_id = "valve_state"
+
+    data = {
+        "nodes": {
+            ROLE_LEVEL: {
+                "available": True,
+                "states": {
+                    "pool_level": 70,
+                },
+            }
+        }
+    }
+
+    await coordinator._async_run_level_automation(data)
+
+    assert fill_client.switch_calls == [("valve_state", True)]
+    assert data["water_level_automation"]["action"] == "fill_started"
+
+
 async def test_alert_orp_low_fires_persistent_notification(
     coordinator: AtlasScientificPoolCoordinator,
     hass: HomeAssistant,
@@ -659,6 +687,36 @@ async def test_water_level_automation_stops_fill_on_runtime_timeout(
     await coordinator._async_run_level_automation(data)
 
     assert level_client.button_calls == ["fill_stop"]
+    assert data["water_level_automation"]["action"] == "fill_timeout_stopped"
+
+
+async def test_water_level_automation_stops_fill_switch_on_runtime_timeout(
+    coordinator: AtlasScientificPoolCoordinator,
+) -> None:
+    """Runtime timeout should turn off a configured native fill switch."""
+    fill_client = FakeClient()
+    fill_client.available = True
+    fill_client.switch_object_ids = ["valve_state"]
+    fill_client.states = {"valve_state": True}
+    coordinator._fill_client = fill_client
+    coordinator._command_map.fill_switch_object_id = "valve_state"
+    coordinator._safety.max_fill_runtime_minutes = 1
+    coordinator._last_fill_command = "start"
+    coordinator._fill_started_at = datetime.now(tz=UTC) - timedelta(minutes=2)
+    data = {
+        "nodes": {
+            ROLE_LEVEL: {
+                "available": True,
+                "states": {
+                    "pool_level": 80,
+                },
+            }
+        }
+    }
+
+    await coordinator._async_run_level_automation(data)
+
+    assert fill_client.switch_calls == [("valve_state", False)]
     assert data["water_level_automation"]["action"] == "fill_timeout_stopped"
 
 

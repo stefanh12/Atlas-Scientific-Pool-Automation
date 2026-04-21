@@ -33,9 +33,11 @@ from .const import (
     CONF_ENABLE_LEVEL_AUTOMATION,
     CONF_ENABLE_NOTIFICATIONS,
     CONF_ENABLE_ORP_AUTOMATION,
+    CONF_FILL_DEVICE_NAME,
     CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
     CONF_FILL_START_BUTTON_OBJECT_ID,
     CONF_FILL_STOP_BUTTON_OBJECT_ID,
+    CONF_FILL_SWITCH_OBJECT_ID,
     CONF_HEAT_PUMP_ENABLED,
     CONF_HEAT_PUMP_NODE,
     CONF_LEVEL_ENABLED,
@@ -84,9 +86,11 @@ from .const import (
     DEFAULT_ENABLE_LEVEL_AUTOMATION,
     DEFAULT_ENABLE_NOTIFICATIONS,
     DEFAULT_ENABLE_ORP_AUTOMATION,
+    DEFAULT_FILL_DEVICE_NAME,
     DEFAULT_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
     DEFAULT_FILL_START_BUTTON_OBJECT_ID,
     DEFAULT_FILL_STOP_BUTTON_OBJECT_ID,
+    DEFAULT_FILL_SWITCH_OBJECT_ID,
     DEFAULT_HEAT_PUMP_ENABLED,
     DEFAULT_LEVEL_ENABLED,
     DEFAULT_LEVEL_HYSTERESIS_PERCENT,
@@ -163,6 +167,27 @@ def _esphome_entries_index(hass: HomeAssistant) -> dict[str, ConfigEntry]:
     return index
 
 
+def _device_keys(device: dr.DeviceEntry) -> set[str]:
+    keys: set[str] = set()
+    for value in (device.name, device.name_by_user, device.model):
+        normalized = str(value or "").strip()
+        if normalized:
+            keys.add(normalized.casefold())
+    return keys
+
+
+def _find_device_by_name(dev_reg: dr.DeviceRegistry, name: str) -> dr.DeviceEntry | None:
+    target = name.strip().casefold()
+    if not target:
+        return None
+
+    for device in dev_reg.devices.values():
+        if target in _device_keys(device):
+            return device
+
+    return None
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Atlas Scientific Pool from a config entry."""
     options = {**entry.data, **entry.options}
@@ -204,6 +229,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         clients[role] = HANodeClient(hass, role, devices[0])
 
+    fill_client = None
+    fill_device_name = str(
+        options.get(CONF_FILL_DEVICE_NAME, DEFAULT_FILL_DEVICE_NAME)
+    ).strip()
+    if fill_device_name:
+        fill_device = _find_device_by_name(dev_reg, fill_device_name)
+        if fill_device is None:
+            raise ConfigEntryNotReady(
+                f"Fill control device '{fill_device_name}' not found in Home Assistant"
+            )
+        fill_client = HANodeClient(hass, "fill_control", fill_device)
+
     enabled_roles = {
         ROLE_CHEMISTRY: True,
         ROLE_PRESSURE: bool(options.get(CONF_PRESSURE_ENABLED, DEFAULT_PRESSURE_ENABLED)),
@@ -215,6 +252,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = AtlasScientificPoolCoordinator(
         hass,
         clients=clients,
+        fill_client=fill_client,
         enabled_roles=enabled_roles,
         update_interval=timedelta(
             seconds=int(options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
@@ -372,6 +410,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             fill_running_binary_sensor_object_id=options.get(
                 CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
                 DEFAULT_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
+            ),
+            fill_switch_object_id=options.get(
+                CONF_FILL_SWITCH_OBJECT_ID,
+                DEFAULT_FILL_SWITCH_OBJECT_ID,
             ),
             pump_power_switch_object_id=options.get(
                 CONF_PUMP_POWER_SWITCH_OBJECT_ID,

@@ -9,6 +9,8 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.atlas_scientific_pool.config_flow import _build_discovery_map
 from custom_components.atlas_scientific_pool.const import (
+    CONF_FILL_DEVICE_NAME,
+    CONF_FILL_SWITCH_OBJECT_ID,
     CONF_HEAT_PUMP_ENABLED,
     CONF_HEAT_PUMP_NODE,
     CONF_LEVEL_ENABLED,
@@ -195,3 +197,20 @@ def test_discovery_map_prefers_brilix_for_heat_pump() -> None:
 
     assert discovery_map[CONF_HEAT_PUMP_NODE] == "brilix-heat-pump"
     assert discovery_map[CONF_PUMP_NODE] == "pool-pump-vario"
+
+
+async def test_options_flow_exposes_native_fill_controls(
+    hass: HomeAssistant,
+    enable_custom_integrations: bool,
+) -> None:
+    """Options flow should expose native fill device and switch fields."""
+    del enable_custom_integrations
+    entry = MockConfigEntry(domain=DOMAIN, data={"chemistry_node": "pool-ezo"}, options={})
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    assert result["type"] == FlowResultType.FORM
+    keys = {marker.schema for marker in result["data_schema"].schema}
+    assert CONF_FILL_DEVICE_NAME in keys
+    assert CONF_FILL_SWITCH_OBJECT_ID in keys

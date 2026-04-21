@@ -59,6 +59,7 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         hass: HomeAssistant,
         *,
         clients: dict[str, Any],
+        fill_client: Any | None = None,
         update_interval: timedelta,
         safety: SafetyConfig,
         command_map: NodeCommandMap,
@@ -74,6 +75,7 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
 
         self._clients: dict[str, Any] = dict(clients)
+        self._fill_client = fill_client
         self._enabled_roles = enabled_roles or {}
 
         self._safety = safety
@@ -171,6 +173,66 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 pass
         return self.state_value(role, object_id)
 
+    def _uses_fill_switch(self) -> bool:
+        return self._fill_client is not None and bool(self._command_map.fill_switch_object_id)
+
+    def _fill_client_available(self) -> bool:
+        return self._fill_client is not None and bool(self._fill_client.node_available())
+
+    def _fill_running_state(self, level_states: dict[str, Any]) -> bool | None:
+        running_sensor = self._command_map.fill_running_binary_sensor_object_id
+        if running_sensor:
+            if running_sensor in level_states:
+                return _as_bool(level_states.get(running_sensor))
+            if self._fill_client is not None:
+                fill_client = self._fill_client
+                value = fill_client.state_value(running_sensor)
+                if value is not None:
+                    return _as_bool(value)
+
+        if self._uses_fill_switch():
+            fill_client = self._fill_client
+            assert fill_client is not None
+            value = fill_client.state_value(self._command_map.fill_switch_object_id)
+            if value is not None:
+                return _as_bool(value)
+
+        return None
+
+    async def _async_set_fill_active(self, *, active: bool) -> None:
+        if self._uses_fill_switch():
+            fill_client = self._fill_client
+            assert fill_client is not None
+            await fill_client.set_switch(self._command_map.fill_switch_object_id, active)
+            return
+
+        level_client = self._clients[ROLE_LEVEL]
+        if active:
+            await level_client.press_button(self._command_map.fill_start_button_object_id)
+        else:
+            await level_client.press_button(self._command_map.fill_stop_button_object_id)
+
+    async def _async_wait_for_fill_state(self, *, expected: bool, timeout_seconds: int) -> bool:
+        for _ in range(timeout_seconds):
+            value: bool | None = None
+            running_sensor = self._command_map.fill_running_binary_sensor_object_id
+            if running_sensor:
+                raw_value = self._diagnostic_state_value(ROLE_LEVEL, running_sensor)
+                if raw_value is not None:
+                    value = _as_bool(raw_value)
+
+            if value is None and self._uses_fill_switch():
+                fill_client = self._fill_client
+                assert fill_client is not None
+                switch_value = fill_client.state_value(self._command_map.fill_switch_object_id)
+                if switch_value is not None:
+                    value = _as_bool(switch_value)
+
+            if value is expected:
+                return True
+            await asyncio.sleep(1)
+        return False
+
     async def _async_wait_for_bool_state(
         self,
         *,
@@ -264,45 +326,47 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if not self.node_available(ROLE_LEVEL):
                 return "fail", "Level node is unavailable"
 
+            uses_fill_switch = self._uses_fill_switch()
             fill_start = self._command_map.fill_start_button_object_id
             fill_stop = self._command_map.fill_stop_button_object_id
+            fill_switch = self._command_map.fill_switch_object_id
             fill_running = self._command_map.fill_running_binary_sensor_object_id
             missing: list[str] = []
-            if not fill_start:
-                missing.append("fill_start_button_object_id")
-            elif not self._diagnostic_has_object(ROLE_LEVEL, fill_start, "button_object_ids"):
-                missing.append(fill_start)
-            if not fill_stop:
-                missing.append("fill_stop_button_object_id")
-            elif not self._diagnostic_has_object(ROLE_LEVEL, fill_stop, "button_object_ids"):
-                missing.append(fill_stop)
-            if not fill_running:
+            if uses_fill_switch:
+                if not self._fill_client_available():
+                    return "fail", "Fill control device is unavailable"
+                fill_client = self._fill_client
+                assert fill_client is not None
+                if fill_switch not in fill_client.all_switch_object_ids():
+                    missing.append(fill_switch or "fill_switch_object_id")
+            else:
+                if not fill_start:
+                    missing.append("fill_start_button_object_id")
+                elif not self._diagnostic_has_object(ROLE_LEVEL, fill_start, "button_object_ids"):
+                    missing.append(fill_start)
+                if not fill_stop:
+                    missing.append("fill_stop_button_object_id")
+                elif not self._diagnostic_has_object(ROLE_LEVEL, fill_stop, "button_object_ids"):
+                    missing.append(fill_stop)
+
+            if not fill_running and not uses_fill_switch:
                 missing.append("fill_running_binary_sensor_object_id")
-            elif not self._diagnostic_has_state(ROLE_LEVEL, fill_running):
+            elif fill_running and self._fill_running_state(
+                self.data.get("nodes", {}).get(ROLE_LEVEL, {}).get("states", {})
+            ) is None:
                 missing.append(fill_running)
             if missing:
-                return "fail", f"Missing level objects: {', '.join(missing)}"
+                return "fail", f"Missing fill control objects: {', '.join(missing)}"
 
-            level_client = self._clients[ROLE_LEVEL]
-            await level_client.press_button(fill_start)
-            started = await self._async_wait_for_bool_state(
-                role=ROLE_LEVEL,
-                object_id=fill_running,
-                expected=True,
-                timeout_seconds=20,
-            )
+            await self._async_set_fill_active(active=True)
+            started = await self._async_wait_for_fill_state(expected=True, timeout_seconds=20)
             if not started:
                 return "fail", "Fill did not report running after start command"
 
             await asyncio.sleep(10)
 
-            await level_client.press_button(fill_stop)
-            stopped = await self._async_wait_for_bool_state(
-                role=ROLE_LEVEL,
-                object_id=fill_running,
-                expected=False,
-                timeout_seconds=20,
-            )
+            await self._async_set_fill_active(active=False)
+            stopped = await self._async_wait_for_fill_state(expected=False, timeout_seconds=20)
             if not stopped:
                 return "fail", "Fill did not report stopped after stop command"
 
@@ -590,10 +654,7 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         level_automation["current_level_percent"] = level_percent
         level_automation["lower_trigger_percent"] = lower_trigger
 
-        fill_running: bool | None = None
-        running_sensor = self._command_map.fill_running_binary_sensor_object_id
-        if running_sensor:
-            fill_running = _as_bool(states.get(running_sensor))
+        fill_running = self._fill_running_state(states)
 
         now = datetime.now(tz=UTC)
         if fill_running is True and self._fill_started_at is None:
@@ -606,18 +667,19 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if inferred_running and self._fill_started_at is None:
             self._fill_started_at = now
 
-        level_client = self._clients[ROLE_LEVEL]
-
         if inferred_running and self._fill_started_at is not None:
             runtime = now - self._fill_started_at
             level_automation["fill_runtime_seconds"] = round(runtime.total_seconds(), 1)
             if runtime > timedelta(minutes=self._safety.max_fill_runtime_minutes):
                 stop_button = self._command_map.fill_stop_button_object_id
-                if not stop_button:
+                if self._uses_fill_switch() and not self._fill_client_available():
+                    level_automation["action"] = "timeout_fill_control_unavailable"
+                    return
+                if not self._uses_fill_switch() and not stop_button:
                     level_automation["action"] = "timeout_no_fill_stop_configured"
                     return
 
-                await level_client.press_button(stop_button)
+                await self._async_set_fill_active(active=False)
                 self._last_fill_command = "stop"
                 self._fill_started_at = None
                 level_automation["action"] = "fill_timeout_stopped"
@@ -629,11 +691,14 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 return
 
             start_button = self._command_map.fill_start_button_object_id
-            if not start_button:
+            if self._uses_fill_switch() and not self._fill_client_available():
+                level_automation["action"] = "fill_control_unavailable"
+                return
+            if not self._uses_fill_switch() and not start_button:
                 level_automation["action"] = "no_fill_start_configured"
                 return
 
-            await level_client.press_button(start_button)
+            await self._async_set_fill_active(active=True)
             self._last_fill_command = "start"
             self._fill_started_at = now
             level_automation["action"] = "fill_started"
@@ -645,11 +710,14 @@ class AtlasScientificPoolCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 return
 
             stop_button = self._command_map.fill_stop_button_object_id
-            if not stop_button:
+            if self._uses_fill_switch() and not self._fill_client_available():
+                level_automation["action"] = "fill_control_unavailable"
+                return
+            if not self._uses_fill_switch() and not stop_button:
                 level_automation["action"] = "no_fill_stop_configured"
                 return
 
-            await level_client.press_button(stop_button)
+            await self._async_set_fill_active(active=False)
             self._last_fill_command = "stop"
             self._fill_started_at = None
             level_automation["action"] = "fill_stopped"

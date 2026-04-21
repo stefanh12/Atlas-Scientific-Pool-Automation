@@ -226,6 +226,84 @@ async def test_setup_entry_requires_esphome_device_registration(hass: HomeAssist
         await atlas_init.async_setup_entry(hass, entry)
 
 
+async def test_setup_entry_resolves_native_fill_device(hass: HomeAssistant) -> None:
+    """Setup should resolve an optional native Home Assistant fill device."""
+    ezo_entry = MockConfigEntry(domain="esphome", title="pool-ezo")
+    pressure_entry = MockConfigEntry(domain="esphome", title="pool-pressure")
+    level_entry = MockConfigEntry(domain="esphome", title="pool-level")
+    fill_entry = MockConfigEntry(domain="mqtt", title="zigbee2mqtt")
+    for item in (ezo_entry, pressure_entry, level_entry, fill_entry):
+        item.add_to_hass(hass)
+
+    dev_reg = dr.async_get(hass)
+    chemistry_device = dev_reg.async_get_or_create(
+        config_entry_id=ezo_entry.entry_id,
+        identifiers={("esphome", "pool_ezo")},
+        name="pool-ezo",
+    )
+    pressure_device = dev_reg.async_get_or_create(
+        config_entry_id=pressure_entry.entry_id,
+        identifiers={("esphome", "pool_pressure")},
+        name="pool-pressure",
+    )
+    level_device = dev_reg.async_get_or_create(
+        config_entry_id=level_entry.entry_id,
+        identifiers={("esphome", "pool_level")},
+        name="pool-level",
+    )
+    fill_device = dev_reg.async_get_or_create(
+        config_entry_id=fill_entry.entry_id,
+        identifiers={("mqtt", "swv_fill_valve")},
+        name="Pool Fill Valve",
+    )
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            "chemistry_node": "pool-ezo",
+            "pressure_node": "pool-pressure",
+            "level_node": "pool-level",
+        },
+        options={
+            "scan_interval": 30,
+            "enable_controls": True,
+            "pressure_enabled": True,
+            "level_enabled": True,
+            "pump_enabled": False,
+            "heat_pump_enabled": False,
+            "fill_device_name": "Pool Fill Valve",
+            "fill_switch_object_id": "valve_state",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    chemistry_client = object()
+    pressure_client = object()
+    level_client = object()
+    fill_client = object()
+
+    with patch(
+        "custom_components.atlas_scientific_pool.HANodeClient",
+        side_effect=[chemistry_client, pressure_client, level_client, fill_client],
+    ) as node_client_cls, patch(
+        "custom_components.atlas_scientific_pool.AtlasScientificPoolCoordinator"
+    ) as coordinator_cls, patch.object(
+        hass.config_entries,
+        "async_forward_entry_setups",
+        new=AsyncMock(),
+    ):
+        coordinator = coordinator_cls.return_value
+        coordinator.async_config_entry_first_refresh = AsyncMock()
+
+        assert await atlas_init.async_setup_entry(hass, entry)
+
+    assert node_client_cls.call_args_list[0].args == (hass, "chemistry", chemistry_device)
+    assert node_client_cls.call_args_list[1].args == (hass, "pressure", pressure_device)
+    assert node_client_cls.call_args_list[2].args == (hass, "level", level_device)
+    assert node_client_cls.call_args_list[3].args == (hass, "fill_control", fill_device)
+    assert coordinator_cls.call_args.kwargs["fill_client"] is fill_client
+
+
 async def test_unload_entry_shuts_down_and_cleans_up(hass: HomeAssistant) -> None:
     """Unload should tear down platforms, stop the coordinator, and clear hass.data."""
     entry = MockConfigEntry(domain=DOMAIN)

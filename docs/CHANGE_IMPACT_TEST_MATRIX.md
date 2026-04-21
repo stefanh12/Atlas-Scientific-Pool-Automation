@@ -31,7 +31,9 @@ Required tests:
 - `tests/test_coordinator.py::test_safeguard_blocks_acid_when_pool_pump_not_running`
 - `tests/test_coordinator.py::test_interlock_blocks_chlorine_when_acid_running`
 - `tests/test_coordinator.py::test_water_level_automation_starts_fill_when_low`
+- `tests/test_coordinator.py::test_water_level_automation_uses_fill_switch_when_configured`
 - `tests/test_coordinator.py::test_water_level_automation_stops_fill_on_runtime_timeout`
+- `tests/test_coordinator.py::test_water_level_automation_stops_fill_switch_on_runtime_timeout`
 
 ### pH-effect learning or guardrail changed
 
@@ -80,6 +82,7 @@ Required tests:
 - `tests/test_config_flow.py::test_user_flow_success`
 - `tests/test_config_flow.py::test_user_flow_rejects_duplicate_nodes`
 - `tests/test_config_flow.py::test_discovery_map_prefers_brilix_for_heat_pump`
+- `tests/test_config_flow.py::test_options_flow_exposes_native_fill_controls`
 
 ### Platform entity projection changed
 

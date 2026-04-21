@@ -25,6 +25,7 @@ class NodeCommandMap:
     pump_speed_low_switch_object_id: str
     pump_speed_medium_switch_object_id: str
     pump_speed_high_switch_object_id: str
+    fill_switch_object_id: str = ""
 
 
 @dataclass(slots=True)

@@ -23,7 +23,7 @@ Atlas Scientific Pool is a Home Assistant custom integration that aggregates mul
    - snapshots all node object IDs and state values
    - updates chlorine->pH effect learning window
    - runs ORP automation
-   - runs level automation
+   - runs level automation, optionally driving a native Home Assistant fill-valve switch when configured
    - runs alert checks
 3. Entity platforms read from coordinator data:
    - dynamic entities map object IDs discovered from nodes
@@ -116,6 +116,7 @@ Change impact:
 Inputs:
 
 - user-selected enabled roles and node names
+- optional native Home Assistant fill-control device name and switch object ID
 - Home Assistant ESPHome config entries
 
 Outputs:
@@ -126,6 +127,7 @@ Outputs:
 Change impact:
 
 - role discovery, enabled-role gating, and duplicate-node validation must remain deterministic
+- native fill-device options must stay backward-compatible with the existing ESPHome button path
 
 ### Platform modules (`sensor.py`, `number.py`, `button.py`, `binary_sensor.py`, `switch.py`, `select.py`)
 

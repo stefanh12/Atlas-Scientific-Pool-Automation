@@ -63,8 +63,9 @@ Each invariant includes:
 9. Level automation must obey target/hysteresis/timeout behavior
 
 - Rule: fill starts below lower trigger, stops at target, and force-stops on max runtime.
+- Rule detail: if a native Home Assistant fill switch is configured, it must obey the same start/stop/timeout rules as the legacy level-node button path.
 - Why: prevents overflow and stuck-fill scenarios.
-- Verify: `test_water_level_automation_starts_fill_when_low`, `test_water_level_automation_stops_fill_on_runtime_timeout`.
+- Verify: `test_water_level_automation_starts_fill_when_low`, `test_water_level_automation_uses_fill_switch_when_configured`, `test_water_level_automation_stops_fill_on_runtime_timeout`, `test_water_level_automation_stops_fill_switch_on_runtime_timeout`.
 
 10. Alert notifications must be cooldown-throttled
 
