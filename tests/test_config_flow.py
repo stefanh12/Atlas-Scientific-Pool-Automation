@@ -9,8 +9,6 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.atlas_scientific_pool.config_flow import _build_discovery_map
 from custom_components.atlas_scientific_pool.const import (
-    CONF_FILL_DEVICE_NAME,
-    CONF_FILL_SWITCH_OBJECT_ID,
     CONF_HEAT_PUMP_ENABLED,
     CONF_HEAT_PUMP_NODE,
     CONF_LEVEL_ENABLED,
@@ -70,8 +68,6 @@ async def test_user_flow_success(
     assert result4["type"] == FlowResultType.CREATE_ENTRY
     assert result4["title"] == "Pool (pool-ezo)"
     assert result4["options"]["max_fill_runtime_minutes"] == 45
-    assert result4["options"]["expose_raw_pump_switches"] is False
-    assert result4["options"]["enable_pump_speed_abstraction"] is True
 
 
 async def test_user_flow_rejects_duplicate_nodes(
@@ -113,11 +109,11 @@ async def test_user_flow_rejects_duplicate_nodes(
     assert result3["errors"]["base"] == "nodes_must_be_unique"
 
 
-async def test_user_flow_allows_enabled_roles_without_node_names(
+async def test_user_flow_enabled_roles_require_node_names(
     hass: HomeAssistant,
     enable_custom_integrations: bool,
 ) -> None:
-    """Only chemistry node is required for onboarding."""
+    """Rule 1: if a role is enabled its corresponding node must be provided."""
     del enable_custom_integrations
     MockConfigEntry(domain="esphome", title="pool-ezo").add_to_hass(hass)
 
@@ -126,39 +122,28 @@ async def test_user_flow_allows_enabled_roles_without_node_names(
         context={"source": config_entries.SOURCE_USER},
     )
 
+    # Enable pump role but supply no pump node – should fail
     result2 = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {
-            CONF_PRESSURE_ENABLED: True,
-            CONF_LEVEL_ENABLED: True,
+            CONF_PRESSURE_ENABLED: False,
+            CONF_LEVEL_ENABLED: False,
             CONF_PUMP_ENABLED: True,
-            CONF_HEAT_PUMP_ENABLED: True,
+            CONF_HEAT_PUMP_ENABLED: False,
         },
     )
+    assert result2["type"] == FlowResultType.FORM
+    assert result2["step_id"] == "nodes"
 
     result3 = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {
             "chemistry_node": "pool-ezo",
-            "pressure_node": "",
-            "level_node": "",
             "pump_node": "",
-            "heat_pump_node": "",
         },
     )
-
     assert result3["type"] == FlowResultType.FORM
-    assert result3["step_id"] == "settings"
-
-    result4 = await hass.config_entries.flow.async_configure(
-        result["flow_id"],
-        {},
-    )
-
-    assert result2["type"] == FlowResultType.FORM
-    assert result2["step_id"] == "nodes"
-    assert result4["type"] == FlowResultType.CREATE_ENTRY
-    assert result4["data"]["chemistry_node"] == "pool-ezo"
+    assert result3["errors"]["base"] == "required_nodes_missing"
 
 
 async def test_user_flow_chemistry_only_keeps_other_roles_disabled(
@@ -244,9 +229,10 @@ async def test_user_flow_shows_settings_as_last_step(
     assert result2["step_id"] == "nodes"
     assert result3["type"] == FlowResultType.FORM
     assert result3["step_id"] == "settings"
+    # Rule 2: level settings visible because level_enabled=True
     keys = {marker.schema for marker in result3["data_schema"].schema}
-    assert CONF_FILL_DEVICE_NAME in keys
-    assert CONF_FILL_SWITCH_OBJECT_ID in keys
+    assert "max_fill_runtime_minutes" in keys
+    assert "enable_level_automation" in keys
 
 
 def test_discovery_map_prefers_brilix_for_heat_pump() -> None:
@@ -265,18 +251,30 @@ def test_discovery_map_prefers_brilix_for_heat_pump() -> None:
     assert discovery_map[CONF_PUMP_NODE] == "pool-pump-vario"
 
 
-async def test_options_flow_exposes_native_fill_controls(
+async def test_options_flow_shows_level_settings_when_level_enabled(
     hass: HomeAssistant,
     enable_custom_integrations: bool,
 ) -> None:
-    """Options flow should expose native fill device and switch fields."""
+    """Rule 2: options flow shows level settings only when level role is enabled."""
     del enable_custom_integrations
-    entry = MockConfigEntry(domain=DOMAIN, data={"chemistry_node": "pool-ezo"}, options={})
-    entry.add_to_hass(hass)
+    entry_with_level = MockConfigEntry(
+        domain=DOMAIN,
+        data={"chemistry_node": "pool-ezo", CONF_LEVEL_ENABLED: True},
+        options={},
+    )
+    entry_with_level.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry_with_level.entry_id)
+    keys_level = {marker.schema for marker in result["data_schema"].schema}
+    assert "enable_level_automation" in keys_level
+    assert "max_fill_runtime_minutes" in keys_level
 
-    result = await hass.config_entries.options.async_init(entry.entry_id)
-
-    assert result["type"] == FlowResultType.FORM
-    keys = {marker.schema for marker in result["data_schema"].schema}
-    assert CONF_FILL_DEVICE_NAME in keys
-    assert CONF_FILL_SWITCH_OBJECT_ID in keys
+    entry_no_level = MockConfigEntry(
+        domain=DOMAIN,
+        data={"chemistry_node": "pool-ezo", CONF_LEVEL_ENABLED: False},
+        options={},
+    )
+    entry_no_level.add_to_hass(hass)
+    result2 = await hass.config_entries.options.async_init(entry_no_level.entry_id)
+    keys_no_level = {marker.schema for marker in result2["data_schema"].schema}
+    assert "enable_level_automation" not in keys_no_level
+    assert "max_fill_runtime_minutes" not in keys_no_level

@@ -181,7 +181,7 @@ def _node_schema(defaults: dict[str, Any]) -> vol.Schema:
 
     if defaults.get(CONF_PUMP_ENABLED, DEFAULT_PUMP_ENABLED):
         schema[
-            vol.Optional(
+            vol.Required(
                 CONF_PUMP_NODE,
                 default=defaults.get(CONF_PUMP_NODE, ""),
             )
@@ -189,7 +189,7 @@ def _node_schema(defaults: dict[str, Any]) -> vol.Schema:
 
     if defaults.get(CONF_HEAT_PUMP_ENABLED, DEFAULT_HEAT_PUMP_ENABLED):
         schema[
-            vol.Optional(
+            vol.Required(
                 CONF_HEAT_PUMP_NODE,
                 default=defaults.get(CONF_HEAT_PUMP_NODE, ""),
             )
@@ -269,342 +269,205 @@ def _build_discovery_map(node_names: list[str]) -> dict[str, str]:
 
 
 def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
-    return vol.Schema(
-        {
-            vol.Required(
-                CONF_SCAN_INTERVAL,
-                default=defaults.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=5, max=300, mode=selector.NumberSelectorMode.BOX)
-            ),
+    level_enabled = defaults.get(CONF_LEVEL_ENABLED, DEFAULT_LEVEL_ENABLED)
 
-            vol.Required(
-                CONF_ENABLE_CONTROLS,
-                default=defaults.get(CONF_ENABLE_CONTROLS, DEFAULT_ENABLE_CONTROLS),
-            ): bool,
-            vol.Required(
-                CONF_WINTER_MODE,
-                default=defaults.get(CONF_WINTER_MODE, DEFAULT_WINTER_MODE),
-            ): bool,
-            vol.Required(
-                CONF_PUMP_ENABLED,
-                default=defaults.get(CONF_PUMP_ENABLED, DEFAULT_PUMP_ENABLED),
-            ): bool,
-            vol.Required(
-                CONF_HEAT_PUMP_ENABLED,
-                default=defaults.get(CONF_HEAT_PUMP_ENABLED, DEFAULT_HEAT_PUMP_ENABLED),
-            ): bool,
-            vol.Required(
-                CONF_PRESSURE_ENABLED,
-                default=defaults.get(CONF_PRESSURE_ENABLED, DEFAULT_PRESSURE_ENABLED),
-            ): bool,
-            vol.Required(
-                CONF_LEVEL_ENABLED,
-                default=defaults.get(CONF_LEVEL_ENABLED, DEFAULT_LEVEL_ENABLED),
-            ): bool,
-            vol.Required(
-                CONF_MAX_CHLORINE_DOSE_ML,
-                default=defaults.get(CONF_MAX_CHLORINE_DOSE_ML, DEFAULT_MAX_CHLORINE_DOSE_ML),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=1, max=500, mode=selector.NumberSelectorMode.BOX)
-            ),
-            vol.Required(
-                CONF_MAX_ACID_DOSE_ML,
-                default=defaults.get(CONF_MAX_ACID_DOSE_ML, DEFAULT_MAX_ACID_DOSE_ML),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=1, max=500, mode=selector.NumberSelectorMode.BOX)
-            ),
-            vol.Required(
-                CONF_CHLORINE_COOLDOWN_SECONDS,
-                default=defaults.get(CONF_CHLORINE_COOLDOWN_SECONDS, DEFAULT_CHLORINE_COOLDOWN_SECONDS),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, max=86400, mode=selector.NumberSelectorMode.BOX)
-            ),
-            vol.Required(
-                CONF_ACID_COOLDOWN_SECONDS,
-                default=defaults.get(CONF_ACID_COOLDOWN_SECONDS, DEFAULT_ACID_COOLDOWN_SECONDS),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, max=86400, mode=selector.NumberSelectorMode.BOX)
-            ),
-            vol.Required(
-                CONF_DEFAULT_CHLORINE_DOSE_ML,
-                default=defaults.get(CONF_DEFAULT_CHLORINE_DOSE_ML, DEFAULT_CHLORINE_DOSE_ML),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=1, max=500, mode=selector.NumberSelectorMode.BOX)
-            ),
-            vol.Required(
-                CONF_DEFAULT_ACID_DOSE_ML,
-                default=defaults.get(CONF_DEFAULT_ACID_DOSE_ML, DEFAULT_ACID_DOSE_ML),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=1, max=500, mode=selector.NumberSelectorMode.BOX)
-            ),
-            vol.Required(
-                CONF_ENABLE_ORP_AUTOMATION,
-                default=defaults.get(
-                    CONF_ENABLE_ORP_AUTOMATION,
-                    DEFAULT_ENABLE_ORP_AUTOMATION,
-                ),
-            ): bool,
-            vol.Required(
-                CONF_DEFAULT_TARGET_ORP,
-                default=defaults.get(CONF_DEFAULT_TARGET_ORP, DEFAULT_TARGET_ORP),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=400, max=950, mode=selector.NumberSelectorMode.BOX)
-            ),
-            vol.Required(
-                CONF_ORP_HYSTERESIS_MV,
-                default=defaults.get(CONF_ORP_HYSTERESIS_MV, DEFAULT_ORP_HYSTERESIS_MV),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, max=100, mode=selector.NumberSelectorMode.BOX)
-            ),
-            vol.Required(
-                CONF_ORP_SENSOR_OBJECT_ID,
-                default=defaults.get(CONF_ORP_SENSOR_OBJECT_ID, DEFAULT_ORP_SENSOR_OBJECT_ID),
-            ): str,
-            vol.Required(
-                CONF_ENABLE_LEVEL_AUTOMATION,
-                default=defaults.get(
-                    CONF_ENABLE_LEVEL_AUTOMATION,
-                    DEFAULT_ENABLE_LEVEL_AUTOMATION,
-                ),
-            ): bool,
-            vol.Required(
-                CONF_DEFAULT_TARGET_WATER_LEVEL_PERCENT,
-                default=defaults.get(
-                    CONF_DEFAULT_TARGET_WATER_LEVEL_PERCENT,
-                    DEFAULT_TARGET_WATER_LEVEL_PERCENT,
-                ),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=1, max=100, mode=selector.NumberSelectorMode.BOX)
-            ),
-            vol.Required(
-                CONF_LEVEL_HYSTERESIS_PERCENT,
-                default=defaults.get(
-                    CONF_LEVEL_HYSTERESIS_PERCENT,
-                    DEFAULT_LEVEL_HYSTERESIS_PERCENT,
-                ),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, max=30, mode=selector.NumberSelectorMode.BOX)
-            ),
-            vol.Required(
-                CONF_LEVEL_SENSOR_OBJECT_ID,
-                default=defaults.get(CONF_LEVEL_SENSOR_OBJECT_ID, DEFAULT_LEVEL_SENSOR_OBJECT_ID),
-            ): str,
-            vol.Required(
-                CONF_FILL_DEVICE_NAME,
-                default=defaults.get(CONF_FILL_DEVICE_NAME, DEFAULT_FILL_DEVICE_NAME),
-            ): str,
-            vol.Required(
-                CONF_FILL_SWITCH_OBJECT_ID,
-                default=defaults.get(CONF_FILL_SWITCH_OBJECT_ID, DEFAULT_FILL_SWITCH_OBJECT_ID),
-            ): str,
-            vol.Required(
-                CONF_FILL_START_BUTTON_OBJECT_ID,
-                default=defaults.get(
-                    CONF_FILL_START_BUTTON_OBJECT_ID,
-                    DEFAULT_FILL_START_BUTTON_OBJECT_ID,
-                ),
-            ): str,
-            vol.Required(
-                CONF_FILL_STOP_BUTTON_OBJECT_ID,
-                default=defaults.get(
-                    CONF_FILL_STOP_BUTTON_OBJECT_ID,
-                    DEFAULT_FILL_STOP_BUTTON_OBJECT_ID,
-                ),
-            ): str,
-            vol.Required(
-                CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
-                default=defaults.get(
-                    CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
-                    DEFAULT_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
-                ),
-            ): str,
-            vol.Required(
-                CONF_MAX_FILL_RUNTIME_MINUTES,
-                default=defaults.get(
-                    CONF_MAX_FILL_RUNTIME_MINUTES,
-                    DEFAULT_MAX_FILL_RUNTIME_MINUTES,
-                ),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=1, max=600, mode=selector.NumberSelectorMode.BOX)
-            ),
-            vol.Required(
-                CONF_POOL_VOLUME_LITERS,
-                default=defaults.get(CONF_POOL_VOLUME_LITERS, DEFAULT_POOL_VOLUME_LITERS),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=1000, max=500000, mode=selector.NumberSelectorMode.BOX)
-            ),
-            vol.Required(
+    schema: dict[vol.Marker, Any] = {
+        vol.Required(
+            CONF_SCAN_INTERVAL,
+            default=defaults.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=5, max=300, mode=selector.NumberSelectorMode.BOX)
+        ),
+        # Rule 4: winter mode is the master override – always shown
+        vol.Required(
+            CONF_WINTER_MODE,
+            default=defaults.get(CONF_WINTER_MODE, DEFAULT_WINTER_MODE),
+        ): bool,
+        # Chemistry is always mandatory (Rule 1)
+        vol.Required(
+            CONF_MAX_CHLORINE_DOSE_ML,
+            default=defaults.get(CONF_MAX_CHLORINE_DOSE_ML, DEFAULT_MAX_CHLORINE_DOSE_ML),
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=1, max=500, mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Required(
+            CONF_MAX_ACID_DOSE_ML,
+            default=defaults.get(CONF_MAX_ACID_DOSE_ML, DEFAULT_MAX_ACID_DOSE_ML),
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=1, max=500, mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Required(
+            CONF_CHLORINE_COOLDOWN_SECONDS,
+            default=defaults.get(CONF_CHLORINE_COOLDOWN_SECONDS, DEFAULT_CHLORINE_COOLDOWN_SECONDS),
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=86400, mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Required(
+            CONF_ACID_COOLDOWN_SECONDS,
+            default=defaults.get(CONF_ACID_COOLDOWN_SECONDS, DEFAULT_ACID_COOLDOWN_SECONDS),
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=86400, mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Required(
+            CONF_DEFAULT_CHLORINE_DOSE_ML,
+            default=defaults.get(CONF_DEFAULT_CHLORINE_DOSE_ML, DEFAULT_CHLORINE_DOSE_ML),
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=1, max=500, mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Required(
+            CONF_DEFAULT_ACID_DOSE_ML,
+            default=defaults.get(CONF_DEFAULT_ACID_DOSE_ML, DEFAULT_ACID_DOSE_ML),
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=1, max=500, mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Required(
+            CONF_POOL_VOLUME_LITERS,
+            default=defaults.get(CONF_POOL_VOLUME_LITERS, DEFAULT_POOL_VOLUME_LITERS),
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=1000, max=500000, mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Required(
+            CONF_CHLORINE_STRENGTH_PERCENT,
+            default=defaults.get(
                 CONF_CHLORINE_STRENGTH_PERCENT,
-                default=defaults.get(
-                    CONF_CHLORINE_STRENGTH_PERCENT,
-                    DEFAULT_CHLORINE_STRENGTH_PERCENT,
-                ),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=1, max=20, mode=selector.NumberSelectorMode.BOX)
+                DEFAULT_CHLORINE_STRENGTH_PERCENT,
             ),
-            vol.Required(
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=1, max=20, mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Required(
+            CONF_MAX_PPM_INCREASE_PER_DOSE,
+            default=defaults.get(
                 CONF_MAX_PPM_INCREASE_PER_DOSE,
-                default=defaults.get(
-                    CONF_MAX_PPM_INCREASE_PER_DOSE,
-                    DEFAULT_MAX_PPM_INCREASE_PER_DOSE,
-                ),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0.05, max=3, mode=selector.NumberSelectorMode.BOX)
+                DEFAULT_MAX_PPM_INCREASE_PER_DOSE,
             ),
-            vol.Required(
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0.05, max=3, mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Required(
+            CONF_ACID_STRENGTH_PERCENT,
+            default=defaults.get(
                 CONF_ACID_STRENGTH_PERCENT,
-                default=defaults.get(
-                    CONF_ACID_STRENGTH_PERCENT,
-                    DEFAULT_ACID_STRENGTH_PERCENT,
-                ),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=1, max=50, mode=selector.NumberSelectorMode.BOX)
+                DEFAULT_ACID_STRENGTH_PERCENT,
             ),
-            vol.Required(
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=1, max=50, mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Required(
+            CONF_MAX_PH_DROP_PER_DOSE,
+            default=defaults.get(
                 CONF_MAX_PH_DROP_PER_DOSE,
-                default=defaults.get(
-                    CONF_MAX_PH_DROP_PER_DOSE,
-                    DEFAULT_MAX_PH_DROP_PER_DOSE,
-                ),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0.01, max=1, mode=selector.NumberSelectorMode.BOX)
+                DEFAULT_MAX_PH_DROP_PER_DOSE,
             ),
-            vol.Required(
-                CONF_ENABLE_NOTIFICATIONS,
-                default=defaults.get(
-                    CONF_ENABLE_NOTIFICATIONS, DEFAULT_ENABLE_NOTIFICATIONS
-                ),
-            ): bool,
-            vol.Required(
-                CONF_NOTIFY_SERVICE,
-                default=defaults.get(CONF_NOTIFY_SERVICE, DEFAULT_NOTIFY_SERVICE),
-            ): str,
-            vol.Required(
-                CONF_PH_SENSOR_OBJECT_ID,
-                default=defaults.get(
-                    CONF_PH_SENSOR_OBJECT_ID, DEFAULT_PH_SENSOR_OBJECT_ID
-                ),
-            ): str,
-            vol.Required(
-                CONF_PH_MIN_THRESHOLD,
-                default=defaults.get(CONF_PH_MIN_THRESHOLD, DEFAULT_PH_MIN_THRESHOLD),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=6.0, max=8.0, step=0.05, mode=selector.NumberSelectorMode.BOX
-                )
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0.01, max=1, mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Required(
+            CONF_ENABLE_ORP_AUTOMATION,
+            default=defaults.get(
+                CONF_ENABLE_ORP_AUTOMATION,
+                DEFAULT_ENABLE_ORP_AUTOMATION,
             ),
-            vol.Required(
-                CONF_PH_MAX_THRESHOLD,
-                default=defaults.get(CONF_PH_MAX_THRESHOLD, DEFAULT_PH_MAX_THRESHOLD),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=6.0, max=8.5, step=0.05, mode=selector.NumberSelectorMode.BOX
-                )
+        ): bool,
+        vol.Required(
+            CONF_DEFAULT_TARGET_ORP,
+            default=defaults.get(CONF_DEFAULT_TARGET_ORP, DEFAULT_TARGET_ORP),
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=400, max=950, mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Required(
+            CONF_ORP_HYSTERESIS_MV,
+            default=defaults.get(CONF_ORP_HYSTERESIS_MV, DEFAULT_ORP_HYSTERESIS_MV),
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=100, mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Required(
+            CONF_ENABLE_NOTIFICATIONS,
+            default=defaults.get(
+                CONF_ENABLE_NOTIFICATIONS, DEFAULT_ENABLE_NOTIFICATIONS
             ),
-            vol.Required(
-                CONF_ORP_ALERT_THRESHOLD,
-                default=defaults.get(
-                    CONF_ORP_ALERT_THRESHOLD, DEFAULT_ORP_ALERT_THRESHOLD
-                ),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=300, max=900, mode=selector.NumberSelectorMode.BOX
-                )
+        ): bool,
+        vol.Required(
+            CONF_NOTIFY_SERVICE,
+            default=defaults.get(CONF_NOTIFY_SERVICE, DEFAULT_NOTIFY_SERVICE),
+        ): str,
+        vol.Required(
+            CONF_PH_MIN_THRESHOLD,
+            default=defaults.get(CONF_PH_MIN_THRESHOLD, DEFAULT_PH_MIN_THRESHOLD),
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=6.0, max=8.0, step=0.05, mode=selector.NumberSelectorMode.BOX
+            )
+        ),
+        vol.Required(
+            CONF_PH_MAX_THRESHOLD,
+            default=defaults.get(CONF_PH_MAX_THRESHOLD, DEFAULT_PH_MAX_THRESHOLD),
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=6.0, max=8.5, step=0.05, mode=selector.NumberSelectorMode.BOX
+            )
+        ),
+        vol.Required(
+            CONF_ORP_ALERT_THRESHOLD,
+            default=defaults.get(
+                CONF_ORP_ALERT_THRESHOLD, DEFAULT_ORP_ALERT_THRESHOLD
             ),
-            vol.Required(
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=300, max=900, mode=selector.NumberSelectorMode.BOX
+            )
+        ),
+        vol.Required(
+            CONF_NOTIFICATION_COOLDOWN_MINUTES,
+            default=defaults.get(
                 CONF_NOTIFICATION_COOLDOWN_MINUTES,
-                default=defaults.get(
-                    CONF_NOTIFICATION_COOLDOWN_MINUTES,
-                    DEFAULT_NOTIFICATION_COOLDOWN_MINUTES,
-                ),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=5, max=1440, mode=selector.NumberSelectorMode.BOX
-                )
+                DEFAULT_NOTIFICATION_COOLDOWN_MINUTES,
             ),
-            vol.Required(
-                CONF_EXPOSE_RAW_PUMP_SWITCHES,
-                default=defaults.get(
-                    CONF_EXPOSE_RAW_PUMP_SWITCHES,
-                    DEFAULT_EXPOSE_RAW_PUMP_SWITCHES,
-                ),
-            ): bool,
-            vol.Required(
-                CONF_ENABLE_PUMP_SPEED_ABSTRACTION,
-                default=defaults.get(
-                    CONF_ENABLE_PUMP_SPEED_ABSTRACTION,
-                    DEFAULT_ENABLE_PUMP_SPEED_ABSTRACTION,
-                ),
-            ): bool,
-            vol.Required(
-                CONF_PUMP_POWER_SWITCH_OBJECT_ID,
-                default=defaults.get(
-                    CONF_PUMP_POWER_SWITCH_OBJECT_ID,
-                    DEFAULT_PUMP_POWER_SWITCH_OBJECT_ID,
-                ),
-            ): str,
-            vol.Required(
-                CONF_PUMP_SPEED_LOW_SWITCH_OBJECT_ID,
-                default=defaults.get(
-                    CONF_PUMP_SPEED_LOW_SWITCH_OBJECT_ID,
-                    DEFAULT_PUMP_SPEED_LOW_SWITCH_OBJECT_ID,
-                ),
-            ): str,
-            vol.Required(
-                CONF_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID,
-                default=defaults.get(
-                    CONF_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID,
-                    DEFAULT_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID,
-                ),
-            ): str,
-            vol.Required(
-                CONF_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID,
-                default=defaults.get(
-                    CONF_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID,
-                    DEFAULT_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID,
-                ),
-            ): str,
-            vol.Required(
-                CONF_CHLORINE_VOLUME_NUMBER,
-                default=defaults.get(CONF_CHLORINE_VOLUME_NUMBER, DEFAULT_CHLORINE_VOLUME_NUMBER),
-            ): str,
-            vol.Required(
-                CONF_ACID_VOLUME_NUMBER,
-                default=defaults.get(CONF_ACID_VOLUME_NUMBER, DEFAULT_ACID_VOLUME_NUMBER),
-            ): str,
-            vol.Required(
-                CONF_CHLORINE_DOSE_BUTTON,
-                default=defaults.get(CONF_CHLORINE_DOSE_BUTTON, DEFAULT_CHLORINE_DOSE_BUTTON),
-            ): str,
-            vol.Required(
-                CONF_ACID_DOSE_BUTTON,
-                default=defaults.get(CONF_ACID_DOSE_BUTTON, DEFAULT_ACID_DOSE_BUTTON),
-            ): str,
-            vol.Required(
-                CONF_CHLORINE_STOP_BUTTON,
-                default=defaults.get(CONF_CHLORINE_STOP_BUTTON, DEFAULT_CHLORINE_STOP_BUTTON),
-            ): str,
-            vol.Required(
-                CONF_ACID_STOP_BUTTON,
-                default=defaults.get(CONF_ACID_STOP_BUTTON, DEFAULT_ACID_STOP_BUTTON),
-            ): str,
-            vol.Required(
-                CONF_CHLORINE_RUNNING_BINARY_SENSOR,
-                default=defaults.get(
-                    CONF_CHLORINE_RUNNING_BINARY_SENSOR,
-                    DEFAULT_CHLORINE_RUNNING_BINARY_SENSOR,
-                ),
-            ): str,
-            vol.Required(
-                CONF_ACID_RUNNING_BINARY_SENSOR,
-                default=defaults.get(
-                    CONF_ACID_RUNNING_BINARY_SENSOR,
-                    DEFAULT_ACID_RUNNING_BINARY_SENSOR,
-                ),
-            ): str,
-        }
-    )
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=5, max=1440, mode=selector.NumberSelectorMode.BOX
+            )
+        ),
+    }
+
+    # Rule 2: level-specific settings only shown when level role is enabled
+    if level_enabled:
+        schema[vol.Required(
+            CONF_ENABLE_LEVEL_AUTOMATION,
+            default=defaults.get(
+                CONF_ENABLE_LEVEL_AUTOMATION,
+                DEFAULT_ENABLE_LEVEL_AUTOMATION,
+            ),
+        )] = bool
+        schema[vol.Required(
+            CONF_DEFAULT_TARGET_WATER_LEVEL_PERCENT,
+            default=defaults.get(
+                CONF_DEFAULT_TARGET_WATER_LEVEL_PERCENT,
+                DEFAULT_TARGET_WATER_LEVEL_PERCENT,
+            ),
+        )] = selector.NumberSelector(
+            selector.NumberSelectorConfig(min=1, max=100, mode=selector.NumberSelectorMode.BOX)
+        )
+        schema[vol.Required(
+            CONF_LEVEL_HYSTERESIS_PERCENT,
+            default=defaults.get(
+                CONF_LEVEL_HYSTERESIS_PERCENT,
+                DEFAULT_LEVEL_HYSTERESIS_PERCENT,
+            ),
+        )] = selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=30, mode=selector.NumberSelectorMode.BOX)
+        )
+        schema[vol.Required(
+            CONF_MAX_FILL_RUNTIME_MINUTES,
+            default=defaults.get(
+                CONF_MAX_FILL_RUNTIME_MINUTES,
+                DEFAULT_MAX_FILL_RUNTIME_MINUTES,
+            ),
+        )] = selector.NumberSelector(
+            selector.NumberSelectorConfig(min=1, max=600, mode=selector.NumberSelectorMode.BOX)
+        )
+
+    return vol.Schema(schema)
 
 
 def _default_options() -> dict[str, Any]:
@@ -779,7 +642,13 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
                 else None,
             ]
 
-            if not normalized_input[CONF_CHEMISTRY_NODE]:
+            missing_enabled_nodes = (
+                (normalized_input.get(CONF_PRESSURE_ENABLED) and not normalized_input.get(CONF_PRESSURE_NODE))
+                or (normalized_input.get(CONF_LEVEL_ENABLED) and not normalized_input.get(CONF_LEVEL_NODE))
+                or (normalized_input.get(CONF_PUMP_ENABLED) and not normalized_input.get(CONF_PUMP_NODE))
+                or (normalized_input.get(CONF_HEAT_PUMP_ENABLED) and not normalized_input.get(CONF_HEAT_PUMP_NODE))
+            )
+            if not normalized_input[CONF_CHEMISTRY_NODE] or missing_enabled_nodes:
                 errors["base"] = "required_nodes_missing"
             else:
                 selected.extend(
