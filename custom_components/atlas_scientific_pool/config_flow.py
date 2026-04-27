@@ -268,6 +268,32 @@ def _device_object_ids_for_platforms(
     return sorted(dict.fromkeys(result))
 
 
+def _device_by_entity_object_id(
+    hass: Any, object_id: str | None
+) -> dr.DeviceEntry | None:
+    """Find the device owning an entity with the given object_id slug.
+
+    The object_id is the part after the platform prefix (e.g., "fill_valve" in
+    "switch.fill_valve"). Searches entity registry for any entity with this
+    object_id and returns the owning device, or None if not found.
+    """
+    if not object_id:
+        return None
+
+    ent_reg = er.async_get(hass)
+    dev_reg = dr.async_get(hass)
+
+    # Search for any entity with this object_id
+    for entry in ent_reg.entities.values():
+        if entry.disabled_by:
+            continue
+        _, _, entity_slug = entry.entity_id.partition(".")
+        if entity_slug == object_id or entity_slug.endswith(f"_{object_id}"):
+            if entry.device_id:
+                return dev_reg.devices.get(entry.device_id)
+    return None
+
+
 def _fill_selector_suggestions(
     hass: Any,
     *,
@@ -334,6 +360,49 @@ def _auto_detect_fill_entities(
         CONF_FILL_START_BUTTON_OBJECT_ID: _first_match(level_button_ids, "fill", "start")
         or _first_match(level_button_ids, "fill"),
         CONF_FILL_STOP_BUTTON_OBJECT_ID: _first_match(level_button_ids, "fill", "stop"),
+    }
+
+
+def _auto_detect_fill_entities_for_device(
+    hass: Any,
+    fill_switch_object_id: str | None,
+) -> dict[str, str]:
+    """Auto-detect remaining fill entities from the device owning the fill switch.
+
+    When fill_switch_object_id is provided, finds the device that owns it and
+    narrows suggestions to only entities on that device, returning best-guess
+    values for running sensor, start button, and stop button.
+
+    Returns dict with CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
+    CONF_FILL_START_BUTTON_OBJECT_ID, CONF_FILL_STOP_BUTTON_OBJECT_ID.
+    Empty strings indicate no match found.
+    """
+    if not fill_switch_object_id:
+        return {}
+
+    fill_switch_device = _device_by_entity_object_id(hass, fill_switch_object_id)
+    if not fill_switch_device:
+        return {}
+
+    # Get entities from the same device as the switch
+    fill_running_ids = _device_object_ids_for_platforms(
+        hass, fill_switch_device, ("sensor", "binary_sensor")
+    )
+    fill_button_ids = _device_object_ids_for_platforms(
+        hass, fill_switch_device, ("button",)
+    )
+
+    return {
+        CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID: _first_match(
+            fill_running_ids, "fill", "run"
+        )
+        or _first_match(fill_running_ids, "fill")
+        or (fill_running_ids[0] if fill_running_ids else ""),
+        CONF_FILL_START_BUTTON_OBJECT_ID: _first_match(
+            fill_button_ids, "fill", "start"
+        )
+        or _first_match(fill_button_ids, "fill"),
+        CONF_FILL_STOP_BUTTON_OBJECT_ID: _first_match(fill_button_ids, "fill", "stop"),
     }
 
 
@@ -1259,6 +1328,14 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
         defaults = self._settings_defaults()
 
         if user_input is not None:
+            # Auto-detect remaining fill entities from the selected fill switch device.
+            if user_input.get(CONF_FILL_SWITCH_OBJECT_ID):
+                device_auto = _auto_detect_fill_entities_for_device(
+                    self.hass, user_input[CONF_FILL_SWITCH_OBJECT_ID]
+                )
+                for conf_key, detected in device_auto.items():
+                    if detected and not user_input.get(conf_key):
+                        user_input[conf_key] = detected
             self._settings_input.update(user_input)
             return await self.async_step_settings_notifications()
 
@@ -1370,6 +1447,14 @@ class AtlasScientificPoolOptionsFlow(config_entries.OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         if user_input is not None:
+            # Auto-detect remaining fill entities from the selected fill switch device.
+            if user_input.get(CONF_FILL_SWITCH_OBJECT_ID):
+                device_auto = _auto_detect_fill_entities_for_device(
+                    self.hass, user_input[CONF_FILL_SWITCH_OBJECT_ID]
+                )
+                for conf_key, detected in device_auto.items():
+                    if detected and not user_input.get(conf_key):
+                        user_input[conf_key] = detected
             return self.async_create_entry(title="", data=user_input)
 
         defaults = {**self._config_entry.data, **self._config_entry.options}
