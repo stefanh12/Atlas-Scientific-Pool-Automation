@@ -662,9 +662,6 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
             step_id="roles",
             data_schema=_roles_schema(defaults),
             errors={},
-            description_placeholders={
-                "discovered": ", ".join(available_nodes or discovered_nodes) or "none"
-            },
         )
 
     async def async_step_nodes(

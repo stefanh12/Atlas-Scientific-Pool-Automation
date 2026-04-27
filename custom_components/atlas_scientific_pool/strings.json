@@ -5,7 +5,7 @@
     "step": {
       "roles": {
         "title": "Select pool roles",
-        "description": "Available ESPHome nodes in Home Assistant: {discovered}",
+        "description": "Choose which optional pool roles you use. You can update these selections later from integration options.",
         "data": {
           "pressure_enabled": "Enable filter pressure role",
           "level_enabled": "Enable water level role",

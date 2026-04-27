@@ -36,6 +36,7 @@ async def test_user_flow_success(
     )
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "roles"
+    assert result.get("description_placeholders") in (None, {})
 
     result2 = await hass.config_entries.flow.async_configure(
         result["flow_id"],
