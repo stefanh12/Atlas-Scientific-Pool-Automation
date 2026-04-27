@@ -14,6 +14,7 @@ from custom_components.atlas_scientific_pool.config_flow import (
     _node_schema,
     _options_schema,
     _settings_notifications_schema,
+    _settings_water_level_schema,
 )
 from custom_components.atlas_scientific_pool.const import (
     CONF_FILL_DEVICE_NAME,
@@ -232,6 +233,51 @@ def test_options_schema_uses_notify_autocomplete() -> None:
 
     assert isinstance(notify_selector, selector.SelectSelector)
     assert notify_selector.config["options"] == ["notify.mobile_app_phone"]
+
+
+def test_water_level_settings_schema_uses_fill_autocomplete_selectors() -> None:
+    """Water fill mapping fields should suggest known device and object IDs."""
+    schema = _settings_water_level_schema(
+        {},
+        fill_device_names=["Garden Fill"],
+        fill_switch_object_ids=["fill_valve"],
+        fill_running_object_ids=["fill_running"],
+        fill_start_button_object_ids=["fill_start"],
+        fill_stop_button_object_ids=["fill_stop"],
+    )
+
+    for field, expected_options in (
+        (CONF_FILL_DEVICE_NAME, ["Garden Fill"]),
+        (CONF_FILL_SWITCH_OBJECT_ID, ["fill_valve"]),
+        (CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID, ["fill_running"]),
+        (CONF_FILL_START_BUTTON_OBJECT_ID, ["fill_start"]),
+        (CONF_FILL_STOP_BUTTON_OBJECT_ID, ["fill_stop"]),
+    ):
+        field_selector = schema.schema[
+            next(marker for marker in schema.schema if marker.schema == field)
+        ]
+        assert isinstance(field_selector, selector.SelectSelector)
+        assert field_selector.config["options"] == expected_options
+        assert field_selector.config["custom_value"] is True
+
+
+def test_options_schema_uses_fill_autocomplete_selectors() -> None:
+    """Options flow should surface fill mapping fields as autocomplete selectors."""
+    schema = _options_schema(
+        {CONF_LEVEL_ENABLED: True},
+        [],
+        fill_device_names=["Garden Fill"],
+        fill_switch_object_ids=["fill_valve"],
+        fill_running_object_ids=["fill_running"],
+        fill_start_button_object_ids=["fill_start"],
+        fill_stop_button_object_ids=["fill_stop"],
+    )
+
+    field_selector = schema.schema[
+        next(marker for marker in schema.schema if marker.schema == CONF_FILL_DEVICE_NAME)
+    ]
+    assert isinstance(field_selector, selector.SelectSelector)
+    assert field_selector.config["options"] == ["Garden Fill"]
 
 
 async def test_user_flow_chemistry_only_keeps_other_roles_disabled(

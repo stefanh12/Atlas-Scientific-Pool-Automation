@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import selector
 
 if TYPE_CHECKING:
@@ -177,9 +179,125 @@ def _notify_service_selector(available_services: list[str]) -> selector.SelectSe
     )
 
 
+def _autocomplete_selector(options: list[str]) -> selector.SelectSelector:
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=options,
+            custom_value=True,
+            multiple=False,
+            mode=selector.SelectSelectorMode.DROPDOWN,
+        )
+    )
+
+
 def _available_notify_services(hass: Any) -> list[str]:
     services = hass.services.async_services().get("notify", {})
     return sorted(f"notify.{service_name}" for service_name in services)
+
+
+def _available_device_names(hass: Any) -> list[str]:
+    dev_reg = dr.async_get(hass)
+    names: set[str] = set()
+    for device in dev_reg.devices.values():
+        for value in (device.name_by_user, device.name):
+            normalized = str(value or "").strip()
+            if normalized:
+                names.add(normalized)
+    return sorted(names)
+
+
+def _device_for_esphome_node(hass: Any, node_name: str | None) -> dr.DeviceEntry | None:
+    normalized_name = _normalize_node_name(node_name)
+    if not normalized_name:
+        return None
+
+    node_entry = next(
+        (
+            entry
+            for entry in hass.config_entries.async_entries("esphome")
+            if entry.title and entry.title.casefold() == normalized_name.casefold()
+        ),
+        None,
+    )
+    if node_entry is None:
+        return None
+
+    dev_reg = dr.async_get(hass)
+    devices = dr.async_entries_for_config_entry(dev_reg, node_entry.entry_id)
+    return devices[0] if devices else None
+
+
+def _device_by_name(hass: Any, device_name: str | None) -> dr.DeviceEntry | None:
+    normalized_name = _normalize_node_name(device_name)
+    if not normalized_name:
+        return None
+
+    dev_reg = dr.async_get(hass)
+    target = normalized_name.casefold()
+    for device in dev_reg.devices.values():
+        keys = {
+            str(value or "").strip().casefold()
+            for value in (device.name_by_user, device.name, device.model)
+            if str(value or "").strip()
+        }
+        if target in keys:
+            return device
+    return None
+
+
+def _device_object_ids_for_platforms(
+    hass: Any,
+    device: dr.DeviceEntry | None,
+    platforms: tuple[str, ...],
+) -> list[str]:
+    if device is None:
+        return []
+
+    ent_reg = er.async_get(hass)
+    slug = (device.name or "").lower().replace("-", "_").replace(" ", "_")
+    result: list[str] = []
+    for entry in er.async_entries_for_device(ent_reg, device.id):
+        if entry.disabled_by:
+            continue
+        platform, _, slug_part = entry.entity_id.partition(".")
+        if platform not in platforms:
+            continue
+        prefix = f"{slug}_"
+        if slug_part.startswith(prefix):
+            result.append(slug_part[len(prefix):])
+    return sorted(dict.fromkeys(result))
+
+
+def _fill_selector_suggestions(
+    hass: Any,
+    *,
+    level_node_name: str | None,
+    fill_device_name: str | None,
+) -> tuple[list[str], list[str], list[str], list[str], list[str]]:
+    level_device = _device_for_esphome_node(hass, level_node_name)
+    fill_device = _device_by_name(hass, fill_device_name)
+
+    fill_device_names = _available_device_names(hass)
+    level_button_ids = _device_object_ids_for_platforms(hass, level_device, ("button",))
+    level_running_ids = _device_object_ids_for_platforms(
+        hass,
+        level_device,
+        ("sensor", "binary_sensor"),
+    )
+    fill_switch_ids = _device_object_ids_for_platforms(hass, fill_device, ("switch",))
+    fill_running_ids = _device_object_ids_for_platforms(
+        hass,
+        fill_device,
+        ("sensor", "binary_sensor"),
+    )
+
+    return (
+        fill_device_names,
+        fill_switch_ids,
+        sorted(dict.fromkeys([*level_running_ids, *fill_running_ids])),
+        level_button_ids,
+        level_button_ids,
+    )
 
 
 def _node_schema(defaults: dict[str, Any], available_nodes: list[str]) -> vol.Schema:
@@ -307,9 +425,23 @@ def _build_discovery_map(node_names: list[str]) -> dict[str, str]:
     return result
 
 
-def _options_schema(defaults: dict[str, Any], available_notify_services: list[str]) -> vol.Schema:
+def _options_schema(
+    defaults: dict[str, Any],
+    available_notify_services: list[str],
+    *,
+    fill_device_names: list[str] | None = None,
+    fill_switch_object_ids: list[str] | None = None,
+    fill_running_object_ids: list[str] | None = None,
+    fill_start_button_object_ids: list[str] | None = None,
+    fill_stop_button_object_ids: list[str] | None = None,
+) -> vol.Schema:
     level_enabled = defaults.get(CONF_LEVEL_ENABLED, DEFAULT_LEVEL_ENABLED)
     notify_service_selector = _notify_service_selector(available_notify_services)
+    fill_device_selector = _autocomplete_selector(fill_device_names or [])
+    fill_switch_selector = _autocomplete_selector(fill_switch_object_ids or [])
+    fill_running_selector = _autocomplete_selector(fill_running_object_ids or [])
+    fill_start_selector = _autocomplete_selector(fill_start_button_object_ids or [])
+    fill_stop_selector = _autocomplete_selector(fill_stop_button_object_ids or [])
 
     schema: dict[vol.Marker, Any] = {
         # Rule 4: winter mode is the master override - always shown
@@ -495,35 +627,35 @@ def _options_schema(defaults: dict[str, Any], available_notify_services: list[st
                 CONF_FILL_DEVICE_NAME,
                 DEFAULT_FILL_DEVICE_NAME,
             ),
-        )] = str
+        )] = fill_device_selector
         schema[vol.Required(
             CONF_FILL_SWITCH_OBJECT_ID,
             default=defaults.get(
                 CONF_FILL_SWITCH_OBJECT_ID,
                 DEFAULT_FILL_SWITCH_OBJECT_ID,
             ),
-        )] = str
+        )] = fill_switch_selector
         schema[vol.Required(
             CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
             default=defaults.get(
                 CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
                 DEFAULT_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
             ),
-        )] = str
+        )] = fill_running_selector
         schema[vol.Required(
             CONF_FILL_START_BUTTON_OBJECT_ID,
             default=defaults.get(
                 CONF_FILL_START_BUTTON_OBJECT_ID,
                 DEFAULT_FILL_START_BUTTON_OBJECT_ID,
             ),
-        )] = str
+        )] = fill_start_selector
         schema[vol.Required(
             CONF_FILL_STOP_BUTTON_OBJECT_ID,
             default=defaults.get(
                 CONF_FILL_STOP_BUTTON_OBJECT_ID,
                 DEFAULT_FILL_STOP_BUTTON_OBJECT_ID,
             ),
-        )] = str
+        )] = fill_stop_selector
         schema[vol.Required(
             CONF_MAX_FILL_RUNTIME_MINUTES,
             default=defaults.get(
@@ -658,7 +790,21 @@ def _settings_acid_schema(defaults: dict[str, Any]) -> vol.Schema:
     )
 
 
-def _settings_water_level_schema(defaults: dict[str, Any]) -> vol.Schema:
+def _settings_water_level_schema(
+    defaults: dict[str, Any],
+    *,
+    fill_device_names: list[str] | None = None,
+    fill_switch_object_ids: list[str] | None = None,
+    fill_running_object_ids: list[str] | None = None,
+    fill_start_button_object_ids: list[str] | None = None,
+    fill_stop_button_object_ids: list[str] | None = None,
+) -> vol.Schema:
+    fill_device_selector = _autocomplete_selector(fill_device_names or [])
+    fill_switch_selector = _autocomplete_selector(fill_switch_object_ids or [])
+    fill_running_selector = _autocomplete_selector(fill_running_object_ids or [])
+    fill_start_selector = _autocomplete_selector(fill_start_button_object_ids or [])
+    fill_stop_selector = _autocomplete_selector(fill_stop_button_object_ids or [])
+
     return vol.Schema(
         {
             vol.Required(
@@ -685,35 +831,35 @@ def _settings_water_level_schema(defaults: dict[str, Any]) -> vol.Schema:
                     CONF_FILL_DEVICE_NAME,
                     DEFAULT_FILL_DEVICE_NAME,
                 ),
-            ): str,
+            ): fill_device_selector,
             vol.Required(
                 CONF_FILL_SWITCH_OBJECT_ID,
                 default=defaults.get(
                     CONF_FILL_SWITCH_OBJECT_ID,
                     DEFAULT_FILL_SWITCH_OBJECT_ID,
                 ),
-            ): str,
+            ): fill_switch_selector,
             vol.Required(
                 CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
                 default=defaults.get(
                     CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
                     DEFAULT_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
                 ),
-            ): str,
+            ): fill_running_selector,
             vol.Required(
                 CONF_FILL_START_BUTTON_OBJECT_ID,
                 default=defaults.get(
                     CONF_FILL_START_BUTTON_OBJECT_ID,
                     DEFAULT_FILL_START_BUTTON_OBJECT_ID,
                 ),
-            ): str,
+            ): fill_start_selector,
             vol.Required(
                 CONF_FILL_STOP_BUTTON_OBJECT_ID,
                 default=defaults.get(
                     CONF_FILL_STOP_BUTTON_OBJECT_ID,
                     DEFAULT_FILL_STOP_BUTTON_OBJECT_ID,
                 ),
-            ): str,
+            ): fill_stop_selector,
             vol.Required(
                 CONF_MAX_FILL_RUNTIME_MINUTES,
                 default=defaults.get(
@@ -1082,11 +1228,30 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
         if not self._user_input.get(CONF_LEVEL_ENABLED):
             return await self.async_step_settings_notifications()
 
+        (
+            fill_device_names,
+            fill_switch_object_ids,
+            fill_running_object_ids,
+            fill_start_button_object_ids,
+            fill_stop_button_object_ids,
+        ) = _fill_selector_suggestions(
+            self.hass,
+            level_node_name=self._user_input.get(CONF_LEVEL_NODE),
+            fill_device_name=defaults.get(CONF_FILL_DEVICE_NAME),
+        )
+
         self._set_flow_title_for_step("settings_water_level")
 
         return self.async_show_form(
             step_id="settings_water_level",
-            data_schema=_settings_water_level_schema(defaults),
+            data_schema=_settings_water_level_schema(
+                defaults,
+                fill_device_names=fill_device_names,
+                fill_switch_object_ids=fill_switch_object_ids,
+                fill_running_object_ids=fill_running_object_ids,
+                fill_start_button_object_ids=fill_start_button_object_ids,
+                fill_stop_button_object_ids=fill_stop_button_object_ids,
+            ),
             errors={},
         )
 
@@ -1161,10 +1326,27 @@ class AtlasScientificPoolOptionsFlow(config_entries.OptionsFlow):
             return self.async_create_entry(title="", data=user_input)
 
         defaults = {**self._config_entry.data, **self._config_entry.options}
+        (
+            fill_device_names,
+            fill_switch_object_ids,
+            fill_running_object_ids,
+            fill_start_button_object_ids,
+            fill_stop_button_object_ids,
+        ) = _fill_selector_suggestions(
+            self.hass,
+            level_node_name=defaults.get(CONF_LEVEL_NODE),
+            fill_device_name=defaults.get(CONF_FILL_DEVICE_NAME),
+        )
         return self.async_show_form(
             step_id="init",
             data_schema=_options_schema(
-                defaults, _available_notify_services(self.hass)
+                defaults,
+                _available_notify_services(self.hass),
+                fill_device_names=fill_device_names,
+                fill_switch_object_ids=fill_switch_object_ids,
+                fill_running_object_ids=fill_running_object_ids,
+                fill_start_button_object_ids=fill_start_button_object_ids,
+                fill_stop_button_object_ids=fill_stop_button_object_ids,
             ),
             errors={},
         )
