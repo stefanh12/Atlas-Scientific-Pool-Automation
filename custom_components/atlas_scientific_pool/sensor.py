@@ -14,7 +14,13 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, NODE_ROLES
+from .const import (
+    CONF_LEVEL_ENABLED,
+    DEFAULT_LEVEL_ENABLED,
+    DOMAIN,
+    NODE_ROLES,
+    ROLE_LEVEL,
+)
 from .coordinator import DIAGNOSTIC_TEST_KEYS, AtlasScientificPoolCoordinator
 from .device import integration_device_info
 
@@ -562,9 +568,13 @@ async def async_setup_entry(
 ) -> None:
     """Set up sensor entities from config entry."""
     coordinator: AtlasScientificPoolCoordinator = hass.data[DOMAIN][entry.entry_id]
+    options = {**entry.data, **entry.options}
+    level_enabled = bool(options.get(CONF_LEVEL_ENABLED, DEFAULT_LEVEL_ENABLED))
 
     entities: list[SensorEntity] = []
     for role in NODE_ROLES:
+        if role == ROLE_LEVEL and not level_enabled:
+            continue
         node = coordinator.data.get("nodes", {}).get(role, {}) if coordinator.data else {}
         for object_id in node.get("sensor_object_ids", []):
             entities.append(
@@ -581,8 +591,9 @@ async def async_setup_entry(
     entities.append(AtlasScientificAcidSafeDoseCapSensor(coordinator, entry))
     entities.append(AtlasScientificChlorineNeed24hSensor(coordinator, entry))
     entities.append(AtlasScientificAcidNeed24hSensor(coordinator, entry))
-    entities.append(AtlasScientificWaterLevelAutomationStatusSensor(coordinator, entry))
-    entities.append(AtlasScientificWaterLevelErrorSensor(coordinator, entry))
+    if level_enabled:
+        entities.append(AtlasScientificWaterLevelAutomationStatusSensor(coordinator, entry))
+        entities.append(AtlasScientificWaterLevelErrorSensor(coordinator, entry))
     entities.append(AtlasScientificChlorinePHEffect24hSensor(coordinator, entry))
     entities.append(AtlasScientificDiagnosticsSummarySensor(coordinator, entry))
     entities.append(AtlasScientificDiagnosticsLastRunSensor(coordinator, entry))

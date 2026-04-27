@@ -12,7 +12,15 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, ROLE_CHEMISTRY, ROLE_HEAT_PUMP, ROLE_LEVEL, ROLE_PUMP
+from .const import (
+    CONF_LEVEL_ENABLED,
+    DEFAULT_LEVEL_ENABLED,
+    DOMAIN,
+    ROLE_CHEMISTRY,
+    ROLE_HEAT_PUMP,
+    ROLE_LEVEL,
+    ROLE_PUMP,
+)
 from .coordinator import AtlasScientificPoolCoordinator
 from .device import integration_device_info
 
@@ -197,6 +205,8 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator: AtlasScientificPoolCoordinator = hass.data[DOMAIN][entry.entry_id]
+    options = {**entry.data, **entry.options}
+    level_enabled = bool(options.get(CONF_LEVEL_ENABLED, DEFAULT_LEVEL_ENABLED))
 
     safety = coordinator.safety
     entities: list[NumberEntity] = [
@@ -218,11 +228,15 @@ async def async_setup_entry(
             coordinator,
             entry,
         ),
-        AtlasScientificTargetWaterLevelNumber(
-            coordinator,
-            entry,
-        ),
     ]
+
+    if level_enabled:
+        entities.append(
+            AtlasScientificTargetWaterLevelNumber(
+                coordinator,
+                entry,
+            )
+        )
 
     for role in (ROLE_PUMP, ROLE_HEAT_PUMP):
         node = coordinator.data.get("nodes", {}).get(role, {}) if coordinator.data else {}

@@ -18,6 +18,7 @@ from custom_components.atlas_scientific_pool import sensor as sensor_platform
 from custom_components.atlas_scientific_pool import switch as switch_platform
 from custom_components.atlas_scientific_pool.const import (
     CONF_EXPOSE_RAW_PUMP_SWITCHES,
+    CONF_LEVEL_ENABLED,
     DOMAIN,
     ROLE_CHEMISTRY,
     ROLE_HEAT_PUMP,
@@ -326,6 +327,45 @@ async def test_binary_sensor_platform_entities_reflect_alert_and_automation_stat
     assert ph_alert.extra_state_attributes == {"current_ph": 7.9, "condition": "high"}
     assert orp_active.is_on is True
     assert level_active.is_on is True
+
+
+async def test_water_fill_entities_hidden_when_level_monitor_disabled(
+    hass: HomeAssistant,
+) -> None:
+    """Water-level entities should not be created when level monitor role is disabled."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Pool",
+        data={CONF_LEVEL_ENABLED: False},
+    )
+    entry.add_to_hass(hass)
+    coordinator = _build_coordinator(hass)
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+
+    sensor_entities = []
+    number_entities = []
+    binary_entities = []
+
+    await sensor_platform.async_setup_entry(hass, entry, sensor_entities.extend)
+    await number_platform.async_setup_entry(hass, entry, number_entities.extend)
+    await binary_sensor_platform.async_setup_entry(hass, entry, binary_entities.extend)
+
+    assert not any(
+        isinstance(entity, sensor_platform.AtlasScientificWaterLevelAutomationStatusSensor)
+        for entity in sensor_entities
+    )
+    assert not any(
+        isinstance(entity, sensor_platform.AtlasScientificWaterLevelErrorSensor)
+        for entity in sensor_entities
+    )
+    assert not any(
+        isinstance(entity, number_platform.AtlasScientificTargetWaterLevelNumber)
+        for entity in number_entities
+    )
+    assert not any(
+        isinstance(entity, binary_sensor_platform.AtlasScientificWaterLevelAutomationActiveBinarySensor)
+        for entity in binary_entities
+    )
 
 
 async def test_button_platform_setup_and_actions_route_to_coordinator(

@@ -9,7 +9,13 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, ROLE_CHEMISTRY, ROLE_LEVEL
+from .const import (
+    CONF_LEVEL_ENABLED,
+    DEFAULT_LEVEL_ENABLED,
+    DOMAIN,
+    ROLE_CHEMISTRY,
+    ROLE_LEVEL,
+)
 from .coordinator import AtlasScientificPoolCoordinator
 from .device import integration_device_info
 
@@ -163,11 +169,15 @@ async def async_setup_entry(
 ) -> None:
     """Set up binary sensors for a config entry."""
     coordinator: AtlasScientificPoolCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities(
-        [
-            AtlasScientificOrpAlertBinarySensor(coordinator, entry),
-            AtlasScientificPhAlertBinarySensor(coordinator, entry),
-            AtlasScientificOrpAutomationActiveBinarySensor(coordinator, entry),
-            AtlasScientificWaterLevelAutomationActiveBinarySensor(coordinator, entry),
-        ]
-    )
+    options = {**entry.data, **entry.options}
+    level_enabled = bool(options.get(CONF_LEVEL_ENABLED, DEFAULT_LEVEL_ENABLED))
+
+    entities: list[BinarySensorEntity] = [
+        AtlasScientificOrpAlertBinarySensor(coordinator, entry),
+        AtlasScientificPhAlertBinarySensor(coordinator, entry),
+        AtlasScientificOrpAutomationActiveBinarySensor(coordinator, entry),
+    ]
+    if level_enabled:
+        entities.append(AtlasScientificWaterLevelAutomationActiveBinarySensor(coordinator, entry))
+
+    async_add_entities(entities)

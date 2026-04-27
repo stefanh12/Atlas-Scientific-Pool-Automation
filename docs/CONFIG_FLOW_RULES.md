@@ -35,7 +35,7 @@ Node fields in step 2 must offer autocomplete suggestions from discovered or alr
 The settings form (step 3 and options flow) is filtered by the role flags stored from step 1:
 
 - **Chemistry settings** (dosing parameters, ORP automation, notifications, pool volume, chemical strengths) — always shown; chemistry is always mandatory.
-- **Level runtime settings** (target level, hysteresis, max fill runtime) — shown only when `CONF_LEVEL_ENABLED` is `True`.
+- **Level runtime settings** (target level, hysteresis, max fill runtime, and water-fill entity references) — shown only when `CONF_LEVEL_ENABLED` is `True`.
 - Pump and heat-pump have no additional user-facing settings after applying rules 5 and 6.
 
 The `CONF_NOTIFY_SERVICE` field in the final notifications step and the options flow must offer autocomplete suggestions from currently registered `notify.*` Home Assistant services, while still allowing a manual custom value or an empty value.
@@ -69,15 +69,24 @@ Role selection and control enablement are decided in step 1. They are stored in 
 
 The ESPHome devices already expose their own entities in Home Assistant. The integration must not re-expose or ask the user to configure the underlying entity mappings. The following constants are kept in `_default_options()` so the coordinator always has a fallback, but they are **never shown** in any config or options form:
 
-| Category                  | Constants                                                                                                                                                                 |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Chemistry dosing controls | `CONF_CHLORINE_DOSE_BUTTON`, `CONF_ACID_DOSE_BUTTON`, `CONF_CHLORINE_STOP_BUTTON`, `CONF_ACID_STOP_BUTTON`                                                                |
-| Chemistry device numbers  | `CONF_CHLORINE_VOLUME_NUMBER`, `CONF_ACID_VOLUME_NUMBER`                                                                                                                  |
-| Chemistry running sensors | `CONF_CHLORINE_RUNNING_BINARY_SENSOR`, `CONF_ACID_RUNNING_BINARY_SENSOR`                                                                                                  |
-| Sensor object IDs         | `CONF_ORP_SENSOR_OBJECT_ID`, `CONF_PH_SENSOR_OBJECT_ID`, `CONF_LEVEL_SENSOR_OBJECT_ID`                                                                                    |
-| Fill valve controls       | `CONF_FILL_SWITCH_OBJECT_ID`, `CONF_FILL_START_BUTTON_OBJECT_ID`, `CONF_FILL_STOP_BUTTON_OBJECT_ID`, `CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID`, `CONF_FILL_DEVICE_NAME` |
-| Pump relay object IDs     | `CONF_PUMP_POWER_SWITCH_OBJECT_ID`, `CONF_PUMP_SPEED_LOW_SWITCH_OBJECT_ID`, `CONF_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID`, `CONF_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID`            |
-| Pump abstraction toggle   | `CONF_ENABLE_PUMP_SPEED_ABSTRACTION`                                                                                                                                      |
+| Category                  | Constants                                                                                                                                                      |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Chemistry dosing controls | `CONF_CHLORINE_DOSE_BUTTON`, `CONF_ACID_DOSE_BUTTON`, `CONF_CHLORINE_STOP_BUTTON`, `CONF_ACID_STOP_BUTTON`                                                     |
+| Chemistry device numbers  | `CONF_CHLORINE_VOLUME_NUMBER`, `CONF_ACID_VOLUME_NUMBER`                                                                                                       |
+| Chemistry running sensors | `CONF_CHLORINE_RUNNING_BINARY_SENSOR`, `CONF_ACID_RUNNING_BINARY_SENSOR`                                                                                       |
+| Sensor object IDs         | `CONF_ORP_SENSOR_OBJECT_ID`, `CONF_PH_SENSOR_OBJECT_ID`, `CONF_LEVEL_SENSOR_OBJECT_ID`                                                                         |
+| Pump relay object IDs     | `CONF_PUMP_POWER_SWITCH_OBJECT_ID`, `CONF_PUMP_SPEED_LOW_SWITCH_OBJECT_ID`, `CONF_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID`, `CONF_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID` |
+| Pump abstraction toggle   | `CONF_ENABLE_PUMP_SPEED_ABSTRACTION`                                                                                                                           |
+
+Water-fill entity references are the only exception to this rule because users may need to map native HA fill controls:
+
+- `CONF_FILL_DEVICE_NAME`
+- `CONF_FILL_SWITCH_OBJECT_ID`
+- `CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID`
+- `CONF_FILL_START_BUTTON_OBJECT_ID`
+- `CONF_FILL_STOP_BUTTON_OBJECT_ID`
+
+These fields must only be shown when `CONF_LEVEL_ENABLED` is `True` (onboarding `settings_water_level` step and options flow).
 
 ---
 
@@ -85,6 +94,6 @@ The ESPHome devices already expose their own entities in Home Assistant. The int
 
 1. Adding a new role: add its checkbox to `_roles_schema`, its node field to `_node_schema` as `vol.Required` when enabled, add validation in `async_step_nodes`, and add role-gated settings to `_options_schema` if applicable (Rule 2).
 2. Adding a new setting: if it is role-specific gate it on the appropriate `defaults.get(CONF_<ROLE>_ENABLED)` check in `_options_schema`; add translations to both `config.step.settings.data` and `options.step.init.data`.
-3. Never add device entity object-id fields to the UI (Rule 6). Add new defaults to `_default_options()` and `const.py` only.
+3. Never add device entity object-id fields to the UI (Rule 6), except the explicit water-fill references listed above. Add new defaults to `_default_options()` and `const.py` only.
 4. Never add role toggles to step 3 (Rule 3).
 5. `CONF_WINTER_MODE` must remain the topmost non-scan-interval field in step 3 (Rule 4).

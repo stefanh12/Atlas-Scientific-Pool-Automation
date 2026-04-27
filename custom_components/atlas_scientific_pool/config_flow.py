@@ -479,6 +479,41 @@ def _options_schema(defaults: dict[str, Any], available_notify_services: list[st
             selector.NumberSelectorConfig(min=0, max=30, mode=selector.NumberSelectorMode.BOX)
         )
         schema[vol.Required(
+            CONF_FILL_DEVICE_NAME,
+            default=defaults.get(
+                CONF_FILL_DEVICE_NAME,
+                DEFAULT_FILL_DEVICE_NAME,
+            ),
+        )] = str
+        schema[vol.Required(
+            CONF_FILL_SWITCH_OBJECT_ID,
+            default=defaults.get(
+                CONF_FILL_SWITCH_OBJECT_ID,
+                DEFAULT_FILL_SWITCH_OBJECT_ID,
+            ),
+        )] = str
+        schema[vol.Required(
+            CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
+            default=defaults.get(
+                CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
+                DEFAULT_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
+            ),
+        )] = str
+        schema[vol.Required(
+            CONF_FILL_START_BUTTON_OBJECT_ID,
+            default=defaults.get(
+                CONF_FILL_START_BUTTON_OBJECT_ID,
+                DEFAULT_FILL_START_BUTTON_OBJECT_ID,
+            ),
+        )] = str
+        schema[vol.Required(
+            CONF_FILL_STOP_BUTTON_OBJECT_ID,
+            default=defaults.get(
+                CONF_FILL_STOP_BUTTON_OBJECT_ID,
+                DEFAULT_FILL_STOP_BUTTON_OBJECT_ID,
+            ),
+        )] = str
+        schema[vol.Required(
             CONF_MAX_FILL_RUNTIME_MINUTES,
             default=defaults.get(
                 CONF_MAX_FILL_RUNTIME_MINUTES,
@@ -633,6 +668,41 @@ def _settings_water_level_schema(defaults: dict[str, Any]) -> vol.Schema:
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0, max=30, mode=selector.NumberSelectorMode.BOX)
             ),
+            vol.Required(
+                CONF_FILL_DEVICE_NAME,
+                default=defaults.get(
+                    CONF_FILL_DEVICE_NAME,
+                    DEFAULT_FILL_DEVICE_NAME,
+                ),
+            ): str,
+            vol.Required(
+                CONF_FILL_SWITCH_OBJECT_ID,
+                default=defaults.get(
+                    CONF_FILL_SWITCH_OBJECT_ID,
+                    DEFAULT_FILL_SWITCH_OBJECT_ID,
+                ),
+            ): str,
+            vol.Required(
+                CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
+                default=defaults.get(
+                    CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
+                    DEFAULT_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
+                ),
+            ): str,
+            vol.Required(
+                CONF_FILL_START_BUTTON_OBJECT_ID,
+                default=defaults.get(
+                    CONF_FILL_START_BUTTON_OBJECT_ID,
+                    DEFAULT_FILL_START_BUTTON_OBJECT_ID,
+                ),
+            ): str,
+            vol.Required(
+                CONF_FILL_STOP_BUTTON_OBJECT_ID,
+                default=defaults.get(
+                    CONF_FILL_STOP_BUTTON_OBJECT_ID,
+                    DEFAULT_FILL_STOP_BUTTON_OBJECT_ID,
+                ),
+            ): str,
             vol.Required(
                 CONF_MAX_FILL_RUNTIME_MINUTES,
                 default=defaults.get(

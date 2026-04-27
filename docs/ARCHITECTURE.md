@@ -46,7 +46,7 @@ Optional roles:
 - pump
 - heat_pump
 
-During onboarding, the config flow stores a per-role enabled flag for each optional role. Disabled roles are not bound to ESPHome devices during setup and their entities are omitted because coordinator availability returns false for those roles.
+During onboarding, the config flow stores a per-role enabled flag for each optional role. Disabled roles are not bound to ESPHome devices during setup and role-specific entities are not registered for those roles.
 
 Role routing and role constants are defined in `custom_components/atlas_scientific_pool/const.py`.
 

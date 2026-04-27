@@ -16,6 +16,11 @@ from custom_components.atlas_scientific_pool.config_flow import (
     _settings_notifications_schema,
 )
 from custom_components.atlas_scientific_pool.const import (
+    CONF_FILL_DEVICE_NAME,
+    CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
+    CONF_FILL_START_BUTTON_OBJECT_ID,
+    CONF_FILL_STOP_BUTTON_OBJECT_ID,
+    CONF_FILL_SWITCH_OBJECT_ID,
     CONF_HEAT_PUMP_ENABLED,
     CONF_HEAT_PUMP_NODE,
     CONF_LEVEL_ENABLED,
@@ -366,6 +371,11 @@ async def test_user_flow_shows_grouped_settings_steps(
     assert result6["step_id"] == "settings_water_level"
     keys_level = {marker.schema for marker in result6["data_schema"].schema}
     assert "max_fill_runtime_minutes" in keys_level
+    assert CONF_FILL_DEVICE_NAME in keys_level
+    assert CONF_FILL_SWITCH_OBJECT_ID in keys_level
+    assert CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID in keys_level
+    assert CONF_FILL_START_BUTTON_OBJECT_ID in keys_level
+    assert CONF_FILL_STOP_BUTTON_OBJECT_ID in keys_level
 
     result7 = await hass.config_entries.flow.async_configure(
         result["flow_id"],
@@ -408,6 +418,11 @@ async def test_options_flow_shows_level_settings_when_level_enabled(
     assert "enable_level_automation" not in keys_level
     assert "enable_orp_automation" not in keys_level
     assert "max_fill_runtime_minutes" in keys_level
+    assert CONF_FILL_DEVICE_NAME in keys_level
+    assert CONF_FILL_SWITCH_OBJECT_ID in keys_level
+    assert CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID in keys_level
+    assert CONF_FILL_START_BUTTON_OBJECT_ID in keys_level
+    assert CONF_FILL_STOP_BUTTON_OBJECT_ID in keys_level
 
     entry_no_level = MockConfigEntry(
         domain=DOMAIN,
@@ -420,3 +435,8 @@ async def test_options_flow_shows_level_settings_when_level_enabled(
     assert "enable_level_automation" not in keys_no_level
     assert "enable_orp_automation" not in keys_no_level
     assert "max_fill_runtime_minutes" not in keys_no_level
+    assert CONF_FILL_DEVICE_NAME not in keys_no_level
+    assert CONF_FILL_SWITCH_OBJECT_ID not in keys_no_level
+    assert CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID not in keys_no_level
+    assert CONF_FILL_START_BUTTON_OBJECT_ID not in keys_no_level
+    assert CONF_FILL_STOP_BUTTON_OBJECT_ID not in keys_no_level

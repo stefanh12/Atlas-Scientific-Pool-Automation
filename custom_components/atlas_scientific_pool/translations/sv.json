@@ -78,10 +78,20 @@
         "data": {
           "default_target_water_level_percent": "Standard målvattennivå (%)",
           "level_hysteresis_percent": "Vattennivåhysteres (%)",
+          "fill_device_name": "Valfritt enhetsnamn för påfyllning i Home Assistant",
+          "fill_switch_object_id": "Valfritt object_id för påfyllningsventilens brytare",
+          "fill_running_binary_sensor_object_id": "ESPHome object_id för binärsensor som visar påfyllning pågår",
+          "fill_start_button_object_id": "ESPHome object_id för startknapp för påfyllning",
+          "fill_stop_button_object_id": "ESPHome object_id för stoppknapp för påfyllning",
           "max_fill_runtime_minutes": "Max påfyllningstid innan automatisk stopp (minuter)"
         },
         "data_description": {
           "level_hysteresis_percent": "Påfyllning startar när nivån är under mål minus detta värde",
+          "fill_device_name": "Valfritt. Inbyggt enhetsnamn i Home Assistant för en påfyllningsventil som styrs utanför ESPHome-noden för nivå",
+          "fill_switch_object_id": "Valfritt. Object_id för brytaren på påfyllningsenheten. När den anges tillsammans med enheten används switch turn_on/turn_off i stället för nivånodens knappar",
+          "fill_running_binary_sensor_object_id": "Valfritt. Måste matcha object_id för en sensor eller binärsensor som bekräftar påfyllningsventilens tillstånd. Om den utelämnas och en fyllbrytare är konfigurerad används brytarens tillstånd",
+          "fill_start_button_object_id": "Måste matcha object_id för startknappen för påfyllning i din ESPHome-YAML",
+          "fill_stop_button_object_id": "Måste matcha object_id för stoppknappen för påfyllning i din ESPHome-YAML",
           "max_fill_runtime_minutes": "Säkerhetstimeout: påfyllningsventilen tvångsstängs när denna tid överskridits"
         }
       },
