@@ -300,6 +300,43 @@ def _fill_selector_suggestions(
     )
 
 
+def _first_match(candidates: list[str], *keywords: str) -> str:
+    """Return first candidate whose slug contains ALL keywords (case-insensitive).
+
+    Falls back to the overall first candidate if no keyword match is found.
+    """
+    for candidate in candidates:
+        slug = candidate.lower()
+        if all(kw in slug for kw in keywords):
+            return candidate
+    return candidates[0] if candidates else ""
+
+
+def _auto_detect_fill_entities(
+    fill_switch_ids: list[str],
+    fill_running_ids: list[str],
+    level_button_ids: list[str],
+) -> dict[str, str]:
+    """Return heuristic best-guess entity object IDs for fill valve configuration.
+
+    Each key corresponds to a CONF_FILL_* constant.  An empty string means no
+    suitable candidate was found among the discovered entities.
+    """
+    return {
+        CONF_FILL_SWITCH_OBJECT_ID: _first_match(fill_switch_ids, "fill")
+        or _first_match(fill_switch_ids, "valve")
+        or (fill_switch_ids[0] if fill_switch_ids else ""),
+        CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID: _first_match(
+            fill_running_ids, "fill", "run"
+        )
+        or _first_match(fill_running_ids, "fill")
+        or (fill_running_ids[0] if fill_running_ids else ""),
+        CONF_FILL_START_BUTTON_OBJECT_ID: _first_match(level_button_ids, "fill", "start")
+        or _first_match(level_button_ids, "fill"),
+        CONF_FILL_STOP_BUTTON_OBJECT_ID: _first_match(level_button_ids, "fill", "stop"),
+    }
+
+
 def _node_schema(defaults: dict[str, Any], available_nodes: list[str]) -> vol.Schema:
     node_selector = _node_selector(available_nodes)
     schema: dict[vol.Marker, Any] = {
@@ -1240,6 +1277,16 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
             fill_device_name=defaults.get(CONF_FILL_DEVICE_NAME),
         )
 
+        # Pre-populate fill entity fields when they haven't been set yet.
+        auto = _auto_detect_fill_entities(
+            fill_switch_object_ids,
+            fill_running_object_ids,
+            fill_start_button_object_ids,
+        )
+        for conf_key, detected in auto.items():
+            if detected and not defaults.get(conf_key):
+                defaults[conf_key] = detected
+
         self._set_flow_title_for_step("settings_water_level")
 
         return self.async_show_form(
@@ -1337,6 +1384,17 @@ class AtlasScientificPoolOptionsFlow(config_entries.OptionsFlow):
             level_node_name=defaults.get(CONF_LEVEL_NODE),
             fill_device_name=defaults.get(CONF_FILL_DEVICE_NAME),
         )
+
+        # Pre-populate fill entity fields when they haven't been set yet.
+        auto = _auto_detect_fill_entities(
+            fill_switch_object_ids,
+            fill_running_object_ids,
+            fill_start_button_object_ids,
+        )
+        for conf_key, detected in auto.items():
+            if detected and not defaults.get(conf_key):
+                defaults[conf_key] = detected
+
         return self.async_show_form(
             step_id="init",
             data_schema=_options_schema(
