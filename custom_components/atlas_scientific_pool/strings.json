@@ -23,6 +23,10 @@
           "pump_node": "Pool pump ESPHome node name",
           "heat_pump_node": "Heat pump ESPHome node name"
         }
+      },
+      "settings": {
+        "title": "Review pool settings",
+        "description": "Review and adjust integration settings before creating the pool entry. You can change these later in integration options."
       }
     },
     "error": {

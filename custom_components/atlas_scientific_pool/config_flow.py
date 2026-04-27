@@ -606,6 +606,60 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
         }
     )
 
+
+def _default_options() -> dict[str, Any]:
+    return {
+        CONF_SCAN_INTERVAL: DEFAULT_SCAN_INTERVAL,
+        CONF_ENABLE_CONTROLS: DEFAULT_ENABLE_CONTROLS,
+        CONF_WINTER_MODE: DEFAULT_WINTER_MODE,
+        CONF_MAX_CHLORINE_DOSE_ML: DEFAULT_MAX_CHLORINE_DOSE_ML,
+        CONF_MAX_ACID_DOSE_ML: DEFAULT_MAX_ACID_DOSE_ML,
+        CONF_CHLORINE_COOLDOWN_SECONDS: DEFAULT_CHLORINE_COOLDOWN_SECONDS,
+        CONF_ACID_COOLDOWN_SECONDS: DEFAULT_ACID_COOLDOWN_SECONDS,
+        CONF_DEFAULT_CHLORINE_DOSE_ML: DEFAULT_CHLORINE_DOSE_ML,
+        CONF_DEFAULT_ACID_DOSE_ML: DEFAULT_ACID_DOSE_ML,
+        CONF_ENABLE_ORP_AUTOMATION: DEFAULT_ENABLE_ORP_AUTOMATION,
+        CONF_DEFAULT_TARGET_ORP: DEFAULT_TARGET_ORP,
+        CONF_ORP_HYSTERESIS_MV: DEFAULT_ORP_HYSTERESIS_MV,
+        CONF_ORP_SENSOR_OBJECT_ID: DEFAULT_ORP_SENSOR_OBJECT_ID,
+        CONF_ENABLE_LEVEL_AUTOMATION: DEFAULT_ENABLE_LEVEL_AUTOMATION,
+        CONF_DEFAULT_TARGET_WATER_LEVEL_PERCENT: DEFAULT_TARGET_WATER_LEVEL_PERCENT,
+        CONF_LEVEL_HYSTERESIS_PERCENT: DEFAULT_LEVEL_HYSTERESIS_PERCENT,
+        CONF_LEVEL_SENSOR_OBJECT_ID: DEFAULT_LEVEL_SENSOR_OBJECT_ID,
+        CONF_FILL_DEVICE_NAME: DEFAULT_FILL_DEVICE_NAME,
+        CONF_FILL_SWITCH_OBJECT_ID: DEFAULT_FILL_SWITCH_OBJECT_ID,
+        CONF_FILL_START_BUTTON_OBJECT_ID: DEFAULT_FILL_START_BUTTON_OBJECT_ID,
+        CONF_FILL_STOP_BUTTON_OBJECT_ID: DEFAULT_FILL_STOP_BUTTON_OBJECT_ID,
+        CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID: DEFAULT_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
+        CONF_MAX_FILL_RUNTIME_MINUTES: DEFAULT_MAX_FILL_RUNTIME_MINUTES,
+        CONF_POOL_VOLUME_LITERS: DEFAULT_POOL_VOLUME_LITERS,
+        CONF_CHLORINE_STRENGTH_PERCENT: DEFAULT_CHLORINE_STRENGTH_PERCENT,
+        CONF_MAX_PPM_INCREASE_PER_DOSE: DEFAULT_MAX_PPM_INCREASE_PER_DOSE,
+        CONF_ACID_STRENGTH_PERCENT: DEFAULT_ACID_STRENGTH_PERCENT,
+        CONF_MAX_PH_DROP_PER_DOSE: DEFAULT_MAX_PH_DROP_PER_DOSE,
+        CONF_ENABLE_NOTIFICATIONS: DEFAULT_ENABLE_NOTIFICATIONS,
+        CONF_NOTIFY_SERVICE: DEFAULT_NOTIFY_SERVICE,
+        CONF_PH_SENSOR_OBJECT_ID: DEFAULT_PH_SENSOR_OBJECT_ID,
+        CONF_PH_MIN_THRESHOLD: DEFAULT_PH_MIN_THRESHOLD,
+        CONF_PH_MAX_THRESHOLD: DEFAULT_PH_MAX_THRESHOLD,
+        CONF_ORP_ALERT_THRESHOLD: DEFAULT_ORP_ALERT_THRESHOLD,
+        CONF_NOTIFICATION_COOLDOWN_MINUTES: DEFAULT_NOTIFICATION_COOLDOWN_MINUTES,
+        CONF_EXPOSE_RAW_PUMP_SWITCHES: DEFAULT_EXPOSE_RAW_PUMP_SWITCHES,
+        CONF_ENABLE_PUMP_SPEED_ABSTRACTION: DEFAULT_ENABLE_PUMP_SPEED_ABSTRACTION,
+        CONF_PUMP_POWER_SWITCH_OBJECT_ID: DEFAULT_PUMP_POWER_SWITCH_OBJECT_ID,
+        CONF_PUMP_SPEED_LOW_SWITCH_OBJECT_ID: DEFAULT_PUMP_SPEED_LOW_SWITCH_OBJECT_ID,
+        CONF_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID: DEFAULT_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID,
+        CONF_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID: DEFAULT_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID,
+        CONF_CHLORINE_VOLUME_NUMBER: DEFAULT_CHLORINE_VOLUME_NUMBER,
+        CONF_ACID_VOLUME_NUMBER: DEFAULT_ACID_VOLUME_NUMBER,
+        CONF_CHLORINE_DOSE_BUTTON: DEFAULT_CHLORINE_DOSE_BUTTON,
+        CONF_ACID_DOSE_BUTTON: DEFAULT_ACID_DOSE_BUTTON,
+        CONF_CHLORINE_STOP_BUTTON: DEFAULT_CHLORINE_STOP_BUTTON,
+        CONF_ACID_STOP_BUTTON: DEFAULT_ACID_STOP_BUTTON,
+        CONF_CHLORINE_RUNNING_BINARY_SENSOR: DEFAULT_CHLORINE_RUNNING_BINARY_SENSOR,
+        CONF_ACID_RUNNING_BINARY_SENSOR: DEFAULT_ACID_RUNNING_BINARY_SENSOR,
+    }
+
 class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
     config_entries.ConfigFlow, domain=DOMAIN
 ):
@@ -745,68 +799,7 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
                 if unresolved:
                     errors["base"] = "node_not_found"
                 else:
-                    unique_id = "|".join(sorted(name.casefold() for name in selected))
-                    await self.async_set_unique_id(unique_id)
-                    self._abort_if_unique_id_configured()
-
-                    options = {
-                        CONF_SCAN_INTERVAL: DEFAULT_SCAN_INTERVAL,
-                        CONF_ENABLE_CONTROLS: DEFAULT_ENABLE_CONTROLS,
-                        CONF_WINTER_MODE: DEFAULT_WINTER_MODE,
-                        CONF_MAX_CHLORINE_DOSE_ML: DEFAULT_MAX_CHLORINE_DOSE_ML,
-                        CONF_MAX_ACID_DOSE_ML: DEFAULT_MAX_ACID_DOSE_ML,
-                        CONF_CHLORINE_COOLDOWN_SECONDS: DEFAULT_CHLORINE_COOLDOWN_SECONDS,
-                        CONF_ACID_COOLDOWN_SECONDS: DEFAULT_ACID_COOLDOWN_SECONDS,
-                        CONF_DEFAULT_CHLORINE_DOSE_ML: DEFAULT_CHLORINE_DOSE_ML,
-                        CONF_DEFAULT_ACID_DOSE_ML: DEFAULT_ACID_DOSE_ML,
-                        CONF_ENABLE_ORP_AUTOMATION: DEFAULT_ENABLE_ORP_AUTOMATION,
-                        CONF_DEFAULT_TARGET_ORP: DEFAULT_TARGET_ORP,
-                        CONF_ORP_HYSTERESIS_MV: DEFAULT_ORP_HYSTERESIS_MV,
-                        CONF_ORP_SENSOR_OBJECT_ID: DEFAULT_ORP_SENSOR_OBJECT_ID,
-                        CONF_ENABLE_LEVEL_AUTOMATION: DEFAULT_ENABLE_LEVEL_AUTOMATION,
-                        CONF_DEFAULT_TARGET_WATER_LEVEL_PERCENT: DEFAULT_TARGET_WATER_LEVEL_PERCENT,
-                        CONF_LEVEL_HYSTERESIS_PERCENT: DEFAULT_LEVEL_HYSTERESIS_PERCENT,
-                        CONF_LEVEL_SENSOR_OBJECT_ID: DEFAULT_LEVEL_SENSOR_OBJECT_ID,
-                        CONF_FILL_DEVICE_NAME: DEFAULT_FILL_DEVICE_NAME,
-                        CONF_FILL_SWITCH_OBJECT_ID: DEFAULT_FILL_SWITCH_OBJECT_ID,
-                        CONF_FILL_START_BUTTON_OBJECT_ID: DEFAULT_FILL_START_BUTTON_OBJECT_ID,
-                        CONF_FILL_STOP_BUTTON_OBJECT_ID: DEFAULT_FILL_STOP_BUTTON_OBJECT_ID,
-                        CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID: DEFAULT_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID,
-                        CONF_MAX_FILL_RUNTIME_MINUTES: DEFAULT_MAX_FILL_RUNTIME_MINUTES,
-                        CONF_POOL_VOLUME_LITERS: DEFAULT_POOL_VOLUME_LITERS,
-                        CONF_CHLORINE_STRENGTH_PERCENT: DEFAULT_CHLORINE_STRENGTH_PERCENT,
-                        CONF_MAX_PPM_INCREASE_PER_DOSE: DEFAULT_MAX_PPM_INCREASE_PER_DOSE,
-                        CONF_ACID_STRENGTH_PERCENT: DEFAULT_ACID_STRENGTH_PERCENT,
-                        CONF_MAX_PH_DROP_PER_DOSE: DEFAULT_MAX_PH_DROP_PER_DOSE,
-                        CONF_ENABLE_NOTIFICATIONS: DEFAULT_ENABLE_NOTIFICATIONS,
-                        CONF_NOTIFY_SERVICE: DEFAULT_NOTIFY_SERVICE,
-                        CONF_PH_SENSOR_OBJECT_ID: DEFAULT_PH_SENSOR_OBJECT_ID,
-                        CONF_PH_MIN_THRESHOLD: DEFAULT_PH_MIN_THRESHOLD,
-                        CONF_PH_MAX_THRESHOLD: DEFAULT_PH_MAX_THRESHOLD,
-                        CONF_ORP_ALERT_THRESHOLD: DEFAULT_ORP_ALERT_THRESHOLD,
-                        CONF_NOTIFICATION_COOLDOWN_MINUTES: DEFAULT_NOTIFICATION_COOLDOWN_MINUTES,
-                        CONF_EXPOSE_RAW_PUMP_SWITCHES: DEFAULT_EXPOSE_RAW_PUMP_SWITCHES,
-                        CONF_ENABLE_PUMP_SPEED_ABSTRACTION: DEFAULT_ENABLE_PUMP_SPEED_ABSTRACTION,
-                        CONF_PUMP_POWER_SWITCH_OBJECT_ID: DEFAULT_PUMP_POWER_SWITCH_OBJECT_ID,
-                        CONF_PUMP_SPEED_LOW_SWITCH_OBJECT_ID: DEFAULT_PUMP_SPEED_LOW_SWITCH_OBJECT_ID,
-                        CONF_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID: DEFAULT_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID,
-                        CONF_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID: DEFAULT_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID,
-                        CONF_CHLORINE_VOLUME_NUMBER: DEFAULT_CHLORINE_VOLUME_NUMBER,
-                        CONF_ACID_VOLUME_NUMBER: DEFAULT_ACID_VOLUME_NUMBER,
-                        CONF_CHLORINE_DOSE_BUTTON: DEFAULT_CHLORINE_DOSE_BUTTON,
-                        CONF_ACID_DOSE_BUTTON: DEFAULT_ACID_DOSE_BUTTON,
-                        CONF_CHLORINE_STOP_BUTTON: DEFAULT_CHLORINE_STOP_BUTTON,
-                        CONF_ACID_STOP_BUTTON: DEFAULT_ACID_STOP_BUTTON,
-                        CONF_CHLORINE_RUNNING_BINARY_SENSOR: DEFAULT_CHLORINE_RUNNING_BINARY_SENSOR,
-                        CONF_ACID_RUNNING_BINARY_SENSOR: DEFAULT_ACID_RUNNING_BINARY_SENSOR,
-                    }
-
-                    title = f"Pool ({normalized_input[CONF_CHEMISTRY_NODE]})"
-                    return self.async_create_entry(
-                        title=title,
-                        data=normalized_input,
-                        options=options,
-                    )
+                    return await self.async_step_settings()
 
         return self.async_show_form(
             step_id="nodes",
@@ -815,6 +808,51 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
             description_placeholders={
                 "discovered": ", ".join(available_nodes or discovered_nodes) or "none"
             },
+        )
+
+    async def async_step_settings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Step 3: Confirm and adjust integration settings before creation."""
+        defaults = {**_default_options(), **self._user_input}
+
+        if user_input is not None:
+            selected: list[str] = [str(self._user_input[CONF_CHEMISTRY_NODE])]
+            enabled_node_values: list[str | None] = [
+                str(self._user_input[CONF_PRESSURE_NODE])
+                if self._user_input.get(CONF_PRESSURE_ENABLED)
+                else None,
+                str(self._user_input[CONF_LEVEL_NODE])
+                if self._user_input.get(CONF_LEVEL_ENABLED)
+                else None,
+                str(self._user_input[CONF_PUMP_NODE])
+                if self._user_input.get(CONF_PUMP_ENABLED)
+                else None,
+                str(self._user_input[CONF_HEAT_PUMP_NODE])
+                if self._user_input.get(CONF_HEAT_PUMP_ENABLED)
+                else None,
+            ]
+            selected.extend(
+                node_name
+                for node_name in enabled_node_values
+                if node_name is not None and node_name != ""
+            )
+
+            unique_id = "|".join(sorted(name.casefold() for name in selected))
+            await self.async_set_unique_id(unique_id)
+            self._abort_if_unique_id_configured()
+
+            title = f"Pool ({self._user_input[CONF_CHEMISTRY_NODE]})"
+            return self.async_create_entry(
+                title=title,
+                data=self._user_input,
+                options=user_input,
+            )
+
+        return self.async_show_form(
+            step_id="settings",
+            data_schema=_options_schema(defaults),
+            errors={},
         )
 
     @staticmethod

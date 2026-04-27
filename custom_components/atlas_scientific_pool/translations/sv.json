@@ -3,8 +3,8 @@
     "flow_title": "Atlas Scientific Pool",
     "step": {
       "roles": {
-        "title": "Välj poolroller",
-        "description": "Tillgängliga ESPHome-noder i Home Assistant: {discovered}",
+        "title": "Välj poolautomation",
+        "description": "Aktivera olika automationsdelar för din poolinstallation. Minsta installationen är Atlas Scientific med klor- och syrapumpar.",
         "data": {
           "pressure_enabled": "Aktivera filtertrycksroll",
           "level_enabled": "Aktivera vattennivåroll",
@@ -14,7 +14,7 @@
       },
       "nodes": {
         "title": "Konfigurera poolnoder",
-        "description": "Tillgängliga ESPHome-noder i Home Assistant: {discovered}",
+        "description": "Välj dina enheter som ska användas för övervakning och automation",
         "data": {
           "chemistry_node": "Nodnamn för kemi-ESPHome",
           "pressure_node": "Nodnamn för filtertryck-ESPHome",
@@ -22,6 +22,10 @@
           "pump_node": "Nodnamn för poolpump-ESPHome",
           "heat_pump_node": "Nodnamn för värmepump-ESPHome"
         }
+      },
+      "settings": {
+        "title": "Granska poolinställningar",
+        "description": "Granska och justera integrationsinställningar innan poolposten skapas. Du kan ändra dessa senare i integrationsalternativen."
       }
     },
     "error": {

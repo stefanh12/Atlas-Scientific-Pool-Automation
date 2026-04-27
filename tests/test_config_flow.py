@@ -59,11 +59,19 @@ async def test_user_flow_success(
         },
     )
 
-    assert result3["type"] == FlowResultType.CREATE_ENTRY
-    assert result3["title"] == "Pool (pool-ezo)"
-    assert result3["options"]["max_fill_runtime_minutes"] == 45
-    assert result3["options"]["expose_raw_pump_switches"] is False
-    assert result3["options"]["enable_pump_speed_abstraction"] is True
+    assert result3["type"] == FlowResultType.FORM
+    assert result3["step_id"] == "settings"
+
+    result4 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {},
+    )
+
+    assert result4["type"] == FlowResultType.CREATE_ENTRY
+    assert result4["title"] == "Pool (pool-ezo)"
+    assert result4["options"]["max_fill_runtime_minutes"] == 45
+    assert result4["options"]["expose_raw_pump_switches"] is False
+    assert result4["options"]["enable_pump_speed_abstraction"] is True
 
 
 async def test_user_flow_rejects_duplicate_nodes(
@@ -139,10 +147,18 @@ async def test_user_flow_allows_enabled_roles_without_node_names(
         },
     )
 
+    assert result3["type"] == FlowResultType.FORM
+    assert result3["step_id"] == "settings"
+
+    result4 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {},
+    )
+
     assert result2["type"] == FlowResultType.FORM
     assert result2["step_id"] == "nodes"
-    assert result3["type"] == FlowResultType.CREATE_ENTRY
-    assert result3["data"]["chemistry_node"] == "pool-ezo"
+    assert result4["type"] == FlowResultType.CREATE_ENTRY
+    assert result4["data"]["chemistry_node"] == "pool-ezo"
 
 
 async def test_user_flow_chemistry_only_keeps_other_roles_disabled(
@@ -175,13 +191,62 @@ async def test_user_flow_chemistry_only_keeps_other_roles_disabled(
         },
     )
 
+    assert result3["type"] == FlowResultType.FORM
+    assert result3["step_id"] == "settings"
+
+    result4 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {},
+    )
+
     assert result2["type"] == FlowResultType.FORM
     assert result2["step_id"] == "nodes"
-    assert result3["type"] == FlowResultType.CREATE_ENTRY
-    assert result3["data"][CONF_PRESSURE_ENABLED] is False
-    assert result3["data"][CONF_LEVEL_ENABLED] is False
-    assert result3["data"][CONF_PUMP_ENABLED] is False
-    assert result3["data"][CONF_HEAT_PUMP_ENABLED] is False
+    assert result4["type"] == FlowResultType.CREATE_ENTRY
+    assert result4["data"][CONF_PRESSURE_ENABLED] is False
+    assert result4["data"][CONF_LEVEL_ENABLED] is False
+    assert result4["data"][CONF_PUMP_ENABLED] is False
+    assert result4["data"][CONF_HEAT_PUMP_ENABLED] is False
+
+
+async def test_user_flow_shows_settings_as_last_step(
+    hass: HomeAssistant,
+    enable_custom_integrations: bool,
+) -> None:
+    """Onboarding should show settings form before creating the entry."""
+    del enable_custom_integrations
+    for title in ("pool-ezo", "pool-pressure", "pool-level"):
+        MockConfigEntry(domain="esphome", title=title).add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_USER},
+    )
+
+    result2 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_PRESSURE_ENABLED: True,
+            CONF_LEVEL_ENABLED: True,
+            CONF_PUMP_ENABLED: False,
+            CONF_HEAT_PUMP_ENABLED: False,
+        },
+    )
+    result3 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            "chemistry_node": "pool-ezo",
+            "pressure_node": "pool-pressure",
+            "level_node": "pool-level",
+        },
+    )
+
+    assert result2["type"] == FlowResultType.FORM
+    assert result2["step_id"] == "nodes"
+    assert result3["type"] == FlowResultType.FORM
+    assert result3["step_id"] == "settings"
+    keys = {marker.schema for marker in result3["data_schema"].schema}
+    assert CONF_FILL_DEVICE_NAME in keys
+    assert CONF_FILL_SWITCH_OBJECT_ID in keys
 
 
 def test_discovery_map_prefers_brilix_for_heat_pump() -> None:

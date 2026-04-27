@@ -122,7 +122,8 @@ Inputs:
 Outputs:
 
 - validated config entry data
-- options schema defaults
+- onboarding now uses a three-step user flow: roles -> nodes -> settings
+- a final settings form in onboarding stores initial `entry.options` (same schema as options flow)
 
 Change impact:
 
