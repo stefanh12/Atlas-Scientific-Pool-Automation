@@ -278,7 +278,7 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
         ): selector.NumberSelector(
             selector.NumberSelectorConfig(min=5, max=300, mode=selector.NumberSelectorMode.BOX)
         ),
-        # Rule 4: winter mode is the master override – always shown
+        # Rule 4: winter mode is the master override - always shown
         vol.Required(
             CONF_WINTER_MODE,
             default=defaults.get(CONF_WINTER_MODE, DEFAULT_WINTER_MODE),

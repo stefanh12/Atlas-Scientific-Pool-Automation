@@ -10,6 +10,7 @@ For internal architecture, safety invariants, and required verification workflow
 - `docs/AI_WORKER_PLAYBOOK.md`
 - `docs/SAFETY_INVARIANTS.md`
 - `docs/CHANGE_IMPACT_TEST_MATRIX.md`
+- `docs/CONFIG_FLOW_RULES.md`
 
 Contributor process:
 
@@ -43,16 +44,26 @@ Copy `custom_components/atlas_scientific_pool/` into Home Assistant `config/cust
 
 ## Setup
 
-During setup, select existing **ESPHome node names** already configured in Home Assistant for:
+The integration is configured in three steps:
 
-- chemistry node (required)
-- filter pressure node (required)
-- water-level node (required)
-- pool-pump node (optional)
-- heat-pump node (optional)
+**Step 1 – Select pool roles**
+Choose which optional subsystems are present in your installation. The chemistry node (Atlas EZO) is always required.
 
-Host, port, and API encryption key are resolved automatically from the ESPHome integration.
-Each role must point to a unique ESPHome node.
+**Step 2 – Assign nodes**
+Select the existing **ESPHome node name** for each enabled role. All enabled roles must have a node assigned. Host, port, and API encryption key are resolved automatically from the ESPHome integration. Each role must point to a unique node.
+
+| Role | Required |
+|------|----------|
+| Chemistry (Atlas EZO) | Always |
+| Filter pressure | When pressure role is enabled |
+| Water level | When level role is enabled |
+| Pool pump | When pump role is enabled |
+| Heat pump | When heat-pump role is enabled |
+
+**Step 3 – Review settings**
+Adjust automation thresholds, dosing limits, and notifications. Settings for roles that are not enabled are hidden. Roles cannot be changed here — return to re-configure the integration if roles need to change.
+
+All settings can be updated later via **Settings → Devices & Services → Atlas Scientific Pool → Configure**.
 
 ## Entities
 
@@ -134,11 +145,10 @@ All options are configurable via **Settings → Devices & Services → Atlas Sci
 
 ### General
 
-| Setting           | Description                                                                                                                            | Default | Range |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------- | ----- |
-| `scan_interval`   | How often the coordinator polls node state (seconds)                                                                                   | `30`    | 5–300 |
-| `enable_controls` | Master switch for all dosing and pump control actions                                                                                  | `true`  | —     |
-| `winter_mode`     | Pause all dosing, pump controls, and automations while still reading sensor values. Also exposed as the **Winter mode** switch entity. | `false` | —     |
+| Setting         | Description                                                                                                                                       | Default | Range |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ----- |
+| `scan_interval` | How often the coordinator polls node state (seconds)                                                                                              | `30`    | 5–300 |
+| `winter_mode`   | **Master override.** Pauses all dosing, pump controls, automations, and notifications while still reading sensor values. Also exposed as the **Winter mode** switch entity. | `false` | —     |
 
 ### Dosing safety
 
@@ -165,20 +175,17 @@ Cooldown is split per chemical using separate settings: `chlorine_cooldown_secon
 | `enable_orp_automation` | Automatically dose chlorine when ORP drops below the target minus hysteresis | `false` | —       |
 | `default_target_orp`    | Pre-filled value for the **Target ORP** number entity (mV)                   | `700`   | 400–950 |
 | `orp_hysteresis_mv`     | ORP must be this many mV below target before automation doses (mV)           | `15`    | 0–100   |
-| `orp_sensor_object_id`  | ESPHome object ID of the ORP sensor on the chemistry node                    | `orp`   | —       |
 
 ### Water-level automation
 
-| Setting                                | Description                                                                    | Default      | Range |
-| -------------------------------------- | ------------------------------------------------------------------------------ | ------------ | ----- |
-| `enable_level_automation`              | Automatically start/stop fill valve when water level goes out of range         | `false`      | —     |
-| `default_target_water_level_percent`   | Pre-filled value for the **Target water level** number entity (%)              | `85`         | 1–100 |
-| `level_hysteresis_percent`             | Level must drop this far below target before filling starts (%)                | `3`          | 0–30  |
-| `level_sensor_object_id`               | ESPHome object ID of the water-level sensor                                    | `pool_level` | —     |
-| `fill_start_button_object_id`          | ESPHome object ID of the fill-start button                                     | _(empty)_    | —     |
-| `fill_stop_button_object_id`           | ESPHome object ID of the fill-stop button                                      | _(empty)_    | —     |
-| `fill_running_binary_sensor_object_id` | ESPHome object ID of the fill-in-progress binary sensor                        | _(empty)_    | —     |
-| `max_fill_runtime_minutes`             | Maximum continuous fill time before automation force-stops the valve (minutes) | `45`         | 1–600 |
+Shown only when the **water level role** is enabled.
+
+| Setting                              | Description                                                                    | Default | Range |
+| ------------------------------------ | ------------------------------------------------------------------------------ | ------- | ----- |
+| `enable_level_automation`            | Automatically start/stop fill valve when water level goes out of range         | `false` | —     |
+| `default_target_water_level_percent` | Pre-filled value for the **Target water level** number entity (%)              | `85`    | 1–100 |
+| `level_hysteresis_percent`           | Level must drop this far below target before filling starts (%)                | `3`     | 0–30  |
+| `max_fill_runtime_minutes`           | Maximum continuous fill time before automation force-stops the valve (minutes) | `45`    | 1–600 |
 
 ### Alerts and notifications
 
@@ -187,36 +194,13 @@ Cooldown is split per chemical using separate settings: `chlorine_cooldown_secon
 | `enable_notifications`          | Send notifications via a Home Assistant notify service          | `false`   | —       |
 | `notify_service`                | HA notify service to call, e.g. `notify.mobile_app_myphone`     | _(empty)_ | —       |
 | `notification_cooldown_minutes` | Minimum time between repeated alerts of the same type (minutes) | `60`      | 5–1440  |
-| `ph_sensor_object_id`           | ESPHome object ID of the pH sensor on the chemistry node        | `ph`      | —       |
 | `ph_min_threshold`              | pH below this value triggers a low-pH alert                     | `7.2`     | 6.0–8.0 |
 | `ph_max_threshold`              | pH above this value triggers a high-pH alert                    | `7.8`     | 6.0–8.5 |
 | `orp_alert_threshold`           | ORP below this value triggers a low-ORP alert (mV)              | `600`     | 300–900 |
 
-### Pump relay exposure and abstraction
+### Pump speed abstraction
 
-| Setting                              | Description                                                                      | Default  |
-| ------------------------------------ | -------------------------------------------------------------------------------- | -------- |
-| `expose_raw_pump_switches`           | Show individual relay switch entities for the pump node                          | `false`  |
-| `enable_pump_speed_abstraction`      | Enable the friendly **Pool pump** switch and **Pool pump speed** select entities | `true`   |
-| `pump_power_switch_object_id`        | Pump node relay that controls power                                              | `relay4` |
-| `pump_speed_low_switch_object_id`    | Pump node relay that selects low speed (~1200 RPM)                               | `relay3` |
-| `pump_speed_medium_switch_object_id` | Pump node relay that selects medium speed (~2400 RPM)                            | `relay2` |
-| `pump_speed_high_switch_object_id`   | Pump node relay that selects high speed (~2900 RPM)                              | `relay1` |
-
-### Chemistry node ESPHome object IDs
-
-These map integration commands to the corresponding ESPHome entities on the chemistry node. Change them only if your ESPHome firmware uses different object IDs.
-
-| Setting                          | Description                                                     | Default                  |
-| -------------------------------- | --------------------------------------------------------------- | ------------------------ |
-| `chlorine_volume_number`         | Number entity that sets the target dose volume                  | `volume_cl`              |
-| `acid_volume_number`             | Number entity that sets the target dose volume                  | `volume_acid`            |
-| `chlorine_dose_button`           | Button that starts the chlorine dosing sequence                 | `dose_clorine_over_time` |
-| `acid_dose_button`               | Button that starts the acid dosing sequence                     | `dose_acid_over_time`    |
-| `chlorine_stop_button`           | Button that stops the chlorine pump immediately                 | `stop_cl_pump`           |
-| `acid_stop_button`               | Button that stops the acid pump immediately                     | `stop_acid_pump`         |
-| `chlorine_running_binary_sensor` | Binary sensor that reports whether the chlorine pump is running | `pump_cl_state`          |
-| `acid_running_binary_sensor`     | Binary sensor that reports whether the acid pump is running     | `pump_acid_state`        |
+When a pump node is configured the integration creates a friendly **Pool pump** switch and **Pool pump speed** select entity (`off`, `1200`, `2400`, `2900` RPM) that map to the pump node's relay outputs. The underlying relay switches are not re-exposed — control the pump through the abstraction entities.
 
 ## Safety model
 

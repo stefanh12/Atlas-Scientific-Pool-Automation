@@ -122,7 +122,7 @@ async def test_user_flow_enabled_roles_require_node_names(
         context={"source": config_entries.SOURCE_USER},
     )
 
-    # Enable pump role but supply no pump node – should fail
+    # Enable pump role but supply no pump node - should fail
     result2 = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {
