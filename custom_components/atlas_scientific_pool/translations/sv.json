@@ -23,48 +23,80 @@
           "heat_pump_node": "Nodnamn för värmepump-ESPHome"
         }
       },
-      "settings": {
-        "title": "Granska poolinställningar",
-        "description": "Granska och justera integrationsinställningar innan poolposten skapas. Du kan ändra dessa senare i integrationsalternativen.",
+      "settings_general": {
+        "title": "Allmänna inställningar",
+        "description": "Konfigurera grundläggande drift och säkerhetsbeteende.",
         "data": {
-          "scan_interval": "Uppdateringsintervall (sekunder)",
           "winter_mode": "Vinterläge (pausa all logik och aviseringar)",
+          "scan_interval": "Uppdateringsintervall (sekunder)",
+          "pool_volume_liters": "Poolvolym (liter)"
+        },
+        "data_description": {
+          "winter_mode": "Huvudbrytare: pausar all dosering, pumpreglage och automatik inklusive aviseringar, men fortsätter läsa sensorvärden"
+        }
+      },
+      "settings_chlorine": {
+        "title": "Klorinställningar",
+        "description": "Konfigurera klordoseringsgränser och ORP-reglering.",
+        "data": {
           "max_chlorine_dose_ml": "Maxdos klor (ml)",
-          "max_acid_dose_ml": "Maxdos syra (ml)",
           "chlorine_cooldown_seconds": "Klorkylperiod (sekunder)",
-          "acid_cooldown_seconds": "Syrakylperiod (sekunder)",
           "default_chlorine_dose_ml": "Standard klordosering (ml)",
-          "default_acid_dose_ml": "Standard syradosering (ml)",
-          "pool_volume_liters": "Poolvolym (liter)",
           "chlorine_strength_percent": "Klorstyrka (%)",
           "max_ppm_increase_per_dose": "Max klörjonsökning per dosering (ppm)",
-          "acid_strength_percent": "Syrastyrka (%)",
-          "max_ph_drop_per_dose": "Max pH-sänkning per dosering",
           "default_target_orp": "Standard mål-ORP (mV)",
-          "orp_hysteresis_mv": "ORP-hysteres (mV)",
-          "enable_notifications": "Aktivera larmaviseringar",
-          "notify_service": "Aviseringstjänst",
-          "ph_min_threshold": "Larm vid lågt pH",
-          "ph_max_threshold": "Larm vid högt pH",
-          "orp_alert_threshold": "Larm vid lågt ORP (mV)",
-          "notification_cooldown_minutes": "Minsta antal minuter mellan upprepade larm",
+          "orp_hysteresis_mv": "ORP-hysteres (mV)"
+        },
+        "data_description": {
+          "max_chlorine_dose_ml": "Absolut övre gräns för klordos oavsett kemibegränsningar",
+          "chlorine_cooldown_seconds": "Minsta tid som måste gå innan klor kan doseras igen",
+          "chlorine_strength_percent": "Tillgänglig klorkoncentration i din produkt, används för att beräkna dosgränsen",
+          "max_ppm_increase_per_dose": "Maximal tillåten ökning av fritt klor från en enskild dosering",
+          "orp_hysteresis_mv": "Dosering utlöses när ORP sjunker under mål minus detta värde"
+        }
+      },
+      "settings_acid": {
+        "title": "Syra-inställningar",
+        "description": "Konfigurera syradoseringsgränser och säkerhetströsklar.",
+        "data": {
+          "max_acid_dose_ml": "Maxdos syra (ml)",
+          "acid_cooldown_seconds": "Syrakylperiod (sekunder)",
+          "default_acid_dose_ml": "Standard syradosering (ml)",
+          "acid_strength_percent": "Syrastyrka (%)",
+          "max_ph_drop_per_dose": "Max pH-sänkning per dosering"
+        },
+        "data_description": {
+          "max_acid_dose_ml": "Absolut övre gräns för syrados oavsett kemibegränsningar",
+          "acid_cooldown_seconds": "Minsta tid som måste gå innan syra kan doseras igen",
+          "acid_strength_percent": "Koncentration av din syraprodukt, används för att beräkna dosgränsen",
+          "max_ph_drop_per_dose": "Maximal tillåten pH-sänkning från en enskild dosering"
+        }
+      },
+      "settings_water_level": {
+        "title": "Vattennivåinställningar",
+        "description": "Konfigurera påfyllningsmål och driftgränser.",
+        "data": {
           "default_target_water_level_percent": "Standard målvattennivå (%)",
           "level_hysteresis_percent": "Vattennivåhysteres (%)",
           "max_fill_runtime_minutes": "Max påfyllningstid innan automatisk stopp (minuter)"
         },
         "data_description": {
-          "winter_mode": "Huvudbrytare: pausar all dosering, pumpreglage och automatik inklusive aviseringar, men fortsätter läsa sensorvärden",
-          "max_chlorine_dose_ml": "Absolut övre gräns för klordos oavsett kemibegränsningar",
-          "max_acid_dose_ml": "Absolut övre gräns för syrados oavsett kemibegränsningar",
-          "chlorine_cooldown_seconds": "Minsta tid som måste gå innan klor kan doseras igen",
-          "acid_cooldown_seconds": "Minsta tid som måste gå innan syra kan doseras igen",
-          "orp_hysteresis_mv": "Dosering utlöses när ORP sjunker under mål minus detta värde",
           "level_hysteresis_percent": "Påfyllning startar när nivån är under mål minus detta värde",
-          "max_fill_runtime_minutes": "Säkerhetstimeout: påfyllningsventilen tvångsstängs när denna tid överskridits",
-          "chlorine_strength_percent": "Tillgänglig klorkoncentration i din produkt, används för att beräkna dosgränsen",
-          "max_ppm_increase_per_dose": "Maximal tillåten ökning av fritt klor från en enskild dosering",
-          "acid_strength_percent": "Koncentration av din syraprodukt, används för att beräkna dosgränsen",
-          "max_ph_drop_per_dose": "Maximal tillåten pH-sänkning från en enskild dosering",
+          "max_fill_runtime_minutes": "Säkerhetstimeout: påfyllningsventilen tvångsstängs när denna tid överskridits"
+        }
+      },
+      "settings_notifications": {
+        "title": "Aviseringar",
+        "description": "Konfigurera larmtrösklar och aviseringsbeteende.",
+        "data": {
+          "enable_notifications": "Aktivera larmaviseringar",
+          "notify_service": "Aviseringstjänst",
+          "ph_min_threshold": "Larm vid lågt pH",
+          "ph_max_threshold": "Larm vid högt pH",
+          "orp_alert_threshold": "Larm vid lågt ORP (mV)",
+          "notification_cooldown_minutes": "Minsta antal minuter mellan upprepade larm"
+        },
+        "data_description": {
           "notify_service": "Fullständigt HA-tjänstnamn, t.ex. notify.mobile_app_mintelefon. Lämna tomt för att bara använda aviseringspanelen i HA",
           "notification_cooldown_minutes": "Förhindrar upprepade aviseringar för samma aktiva tillstånd"
         }

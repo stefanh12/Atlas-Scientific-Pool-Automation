@@ -58,16 +58,45 @@ async def test_user_flow_success(
     )
 
     assert result3["type"] == FlowResultType.FORM
-    assert result3["step_id"] == "settings"
+    assert result3["step_id"] == "settings_general"
 
     result4 = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {},
     )
 
-    assert result4["type"] == FlowResultType.CREATE_ENTRY
-    assert result4["title"] == "Pool (pool-ezo)"
-    assert result4["options"]["max_fill_runtime_minutes"] == 45
+    assert result4["type"] == FlowResultType.FORM
+    assert result4["step_id"] == "settings_chlorine"
+
+    result5 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {},
+    )
+    assert result5["type"] == FlowResultType.FORM
+    assert result5["step_id"] == "settings_acid"
+
+    result6 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {},
+    )
+    assert result6["type"] == FlowResultType.FORM
+    assert result6["step_id"] == "settings_water_level"
+
+    result7 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {},
+    )
+    assert result7["type"] == FlowResultType.FORM
+    assert result7["step_id"] == "settings_notifications"
+
+    result8 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {},
+    )
+
+    assert result8["type"] == FlowResultType.CREATE_ENTRY
+    assert result8["title"] == "Pool (pool-ezo)"
+    assert result8["options"]["max_fill_runtime_minutes"] == 45
 
 
 async def test_user_flow_rejects_duplicate_nodes(
@@ -177,27 +206,50 @@ async def test_user_flow_chemistry_only_keeps_other_roles_disabled(
     )
 
     assert result3["type"] == FlowResultType.FORM
-    assert result3["step_id"] == "settings"
+    assert result3["step_id"] == "settings_general"
 
     result4 = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {},
     )
 
+    assert result4["type"] == FlowResultType.FORM
+    assert result4["step_id"] == "settings_chlorine"
+
+    result5 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {},
+    )
+    assert result5["type"] == FlowResultType.FORM
+    assert result5["step_id"] == "settings_acid"
+
+    result6 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {},
+    )
+    # Level disabled in step 1, so water-level step must be skipped.
+    assert result6["type"] == FlowResultType.FORM
+    assert result6["step_id"] == "settings_notifications"
+
+    result7 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {},
+    )
+
     assert result2["type"] == FlowResultType.FORM
     assert result2["step_id"] == "nodes"
-    assert result4["type"] == FlowResultType.CREATE_ENTRY
-    assert result4["data"][CONF_PRESSURE_ENABLED] is False
-    assert result4["data"][CONF_LEVEL_ENABLED] is False
-    assert result4["data"][CONF_PUMP_ENABLED] is False
-    assert result4["data"][CONF_HEAT_PUMP_ENABLED] is False
+    assert result7["type"] == FlowResultType.CREATE_ENTRY
+    assert result7["data"][CONF_PRESSURE_ENABLED] is False
+    assert result7["data"][CONF_LEVEL_ENABLED] is False
+    assert result7["data"][CONF_PUMP_ENABLED] is False
+    assert result7["data"][CONF_HEAT_PUMP_ENABLED] is False
 
 
-async def test_user_flow_shows_settings_as_last_step(
+async def test_user_flow_shows_grouped_settings_steps(
     hass: HomeAssistant,
     enable_custom_integrations: bool,
 ) -> None:
-    """Onboarding should show settings form before creating the entry."""
+    """Onboarding should show grouped settings steps after node selection."""
     del enable_custom_integrations
     for title in ("pool-ezo", "pool-pressure", "pool-level"):
         MockConfigEntry(domain="esphome", title=title).add_to_hass(hass)
@@ -228,12 +280,45 @@ async def test_user_flow_shows_settings_as_last_step(
     assert result2["type"] == FlowResultType.FORM
     assert result2["step_id"] == "nodes"
     assert result3["type"] == FlowResultType.FORM
-    assert result3["step_id"] == "settings"
-    # Rule 2: level-specific runtime settings visible because level_enabled=True
-    keys = {marker.schema for marker in result3["data_schema"].schema}
-    assert "max_fill_runtime_minutes" in keys
-    assert "enable_level_automation" not in keys
-    assert "enable_orp_automation" not in keys
+    assert result3["step_id"] == "settings_general"
+    keys_general = {marker.schema for marker in result3["data_schema"].schema}
+    assert "winter_mode" in keys_general
+    assert "scan_interval" in keys_general
+
+    result4 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {},
+    )
+    assert result4["type"] == FlowResultType.FORM
+    assert result4["step_id"] == "settings_chlorine"
+    keys_chlorine = {marker.schema for marker in result4["data_schema"].schema}
+    assert "max_chlorine_dose_ml" in keys_chlorine
+    assert "default_target_orp" in keys_chlorine
+
+    result5 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {},
+    )
+    assert result5["type"] == FlowResultType.FORM
+    assert result5["step_id"] == "settings_acid"
+    keys_acid = {marker.schema for marker in result5["data_schema"].schema}
+    assert "max_acid_dose_ml" in keys_acid
+
+    result6 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {},
+    )
+    assert result6["type"] == FlowResultType.FORM
+    assert result6["step_id"] == "settings_water_level"
+    keys_level = {marker.schema for marker in result6["data_schema"].schema}
+    assert "max_fill_runtime_minutes" in keys_level
+
+    result7 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {},
+    )
+    assert result7["type"] == FlowResultType.FORM
+    assert result7["step_id"] == "settings_notifications"
 
 
 def test_discovery_map_prefers_brilix_for_heat_pump() -> None:

@@ -272,17 +272,19 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
     level_enabled = defaults.get(CONF_LEVEL_ENABLED, DEFAULT_LEVEL_ENABLED)
 
     schema: dict[vol.Marker, Any] = {
+        # Rule 4: winter mode is the master override - always shown
+        vol.Required(
+            CONF_WINTER_MODE,
+            default=defaults.get(CONF_WINTER_MODE, DEFAULT_WINTER_MODE),
+        ): bool,
+        # General runtime settings
         vol.Required(
             CONF_SCAN_INTERVAL,
             default=defaults.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
         ): selector.NumberSelector(
             selector.NumberSelectorConfig(min=5, max=300, mode=selector.NumberSelectorMode.BOX)
         ),
-        # Rule 4: winter mode is the master override - always shown
-        vol.Required(
-            CONF_WINTER_MODE,
-            default=defaults.get(CONF_WINTER_MODE, DEFAULT_WINTER_MODE),
-        ): bool,
+
         # Chemistry is always mandatory (Rule 1)
         vol.Required(
             CONF_MAX_CHLORINE_DOSE_ML,
@@ -362,6 +364,8 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
         ): selector.NumberSelector(
             selector.NumberSelectorConfig(min=0.01, max=1, mode=selector.NumberSelectorMode.BOX)
         ),
+
+        # ORP regulation
         vol.Required(
             CONF_DEFAULT_TARGET_ORP,
             default=defaults.get(CONF_DEFAULT_TARGET_ORP, DEFAULT_TARGET_ORP),
@@ -374,6 +378,8 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
         ): selector.NumberSelector(
             selector.NumberSelectorConfig(min=0, max=100, mode=selector.NumberSelectorMode.BOX)
         ),
+
+        # Alerts and notifications
         vol.Required(
             CONF_ENABLE_NOTIFICATIONS,
             default=defaults.get(
@@ -456,6 +462,215 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
     return vol.Schema(schema)
 
 
+def _settings_general_schema(defaults: dict[str, Any]) -> vol.Schema:
+    return vol.Schema(
+        {
+            vol.Required(
+                CONF_WINTER_MODE,
+                default=defaults.get(CONF_WINTER_MODE, DEFAULT_WINTER_MODE),
+            ): bool,
+            vol.Required(
+                CONF_SCAN_INTERVAL,
+                default=defaults.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=5, max=300, mode=selector.NumberSelectorMode.BOX)
+            ),
+            vol.Required(
+                CONF_POOL_VOLUME_LITERS,
+                default=defaults.get(CONF_POOL_VOLUME_LITERS, DEFAULT_POOL_VOLUME_LITERS),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=1000, max=500000, mode=selector.NumberSelectorMode.BOX)
+            ),
+        }
+    )
+
+
+def _settings_chlorine_schema(defaults: dict[str, Any]) -> vol.Schema:
+    return vol.Schema(
+        {
+            vol.Required(
+                CONF_MAX_CHLORINE_DOSE_ML,
+                default=defaults.get(CONF_MAX_CHLORINE_DOSE_ML, DEFAULT_MAX_CHLORINE_DOSE_ML),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=1, max=500, mode=selector.NumberSelectorMode.BOX)
+            ),
+            vol.Required(
+                CONF_CHLORINE_COOLDOWN_SECONDS,
+                default=defaults.get(CONF_CHLORINE_COOLDOWN_SECONDS, DEFAULT_CHLORINE_COOLDOWN_SECONDS),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, max=86400, mode=selector.NumberSelectorMode.BOX)
+            ),
+            vol.Required(
+                CONF_DEFAULT_CHLORINE_DOSE_ML,
+                default=defaults.get(CONF_DEFAULT_CHLORINE_DOSE_ML, DEFAULT_CHLORINE_DOSE_ML),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=1, max=500, mode=selector.NumberSelectorMode.BOX)
+            ),
+            vol.Required(
+                CONF_CHLORINE_STRENGTH_PERCENT,
+                default=defaults.get(
+                    CONF_CHLORINE_STRENGTH_PERCENT,
+                    DEFAULT_CHLORINE_STRENGTH_PERCENT,
+                ),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=1, max=20, mode=selector.NumberSelectorMode.BOX)
+            ),
+            vol.Required(
+                CONF_MAX_PPM_INCREASE_PER_DOSE,
+                default=defaults.get(
+                    CONF_MAX_PPM_INCREASE_PER_DOSE,
+                    DEFAULT_MAX_PPM_INCREASE_PER_DOSE,
+                ),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0.05, max=3, mode=selector.NumberSelectorMode.BOX)
+            ),
+            vol.Required(
+                CONF_DEFAULT_TARGET_ORP,
+                default=defaults.get(CONF_DEFAULT_TARGET_ORP, DEFAULT_TARGET_ORP),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=400, max=950, mode=selector.NumberSelectorMode.BOX)
+            ),
+            vol.Required(
+                CONF_ORP_HYSTERESIS_MV,
+                default=defaults.get(CONF_ORP_HYSTERESIS_MV, DEFAULT_ORP_HYSTERESIS_MV),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, max=100, mode=selector.NumberSelectorMode.BOX)
+            ),
+        }
+    )
+
+
+def _settings_acid_schema(defaults: dict[str, Any]) -> vol.Schema:
+    return vol.Schema(
+        {
+            vol.Required(
+                CONF_MAX_ACID_DOSE_ML,
+                default=defaults.get(CONF_MAX_ACID_DOSE_ML, DEFAULT_MAX_ACID_DOSE_ML),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=1, max=500, mode=selector.NumberSelectorMode.BOX)
+            ),
+            vol.Required(
+                CONF_ACID_COOLDOWN_SECONDS,
+                default=defaults.get(CONF_ACID_COOLDOWN_SECONDS, DEFAULT_ACID_COOLDOWN_SECONDS),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, max=86400, mode=selector.NumberSelectorMode.BOX)
+            ),
+            vol.Required(
+                CONF_DEFAULT_ACID_DOSE_ML,
+                default=defaults.get(CONF_DEFAULT_ACID_DOSE_ML, DEFAULT_ACID_DOSE_ML),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=1, max=500, mode=selector.NumberSelectorMode.BOX)
+            ),
+            vol.Required(
+                CONF_ACID_STRENGTH_PERCENT,
+                default=defaults.get(
+                    CONF_ACID_STRENGTH_PERCENT,
+                    DEFAULT_ACID_STRENGTH_PERCENT,
+                ),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=1, max=50, mode=selector.NumberSelectorMode.BOX)
+            ),
+            vol.Required(
+                CONF_MAX_PH_DROP_PER_DOSE,
+                default=defaults.get(
+                    CONF_MAX_PH_DROP_PER_DOSE,
+                    DEFAULT_MAX_PH_DROP_PER_DOSE,
+                ),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0.01, max=1, mode=selector.NumberSelectorMode.BOX)
+            ),
+        }
+    )
+
+
+def _settings_water_level_schema(defaults: dict[str, Any]) -> vol.Schema:
+    return vol.Schema(
+        {
+            vol.Required(
+                CONF_DEFAULT_TARGET_WATER_LEVEL_PERCENT,
+                default=defaults.get(
+                    CONF_DEFAULT_TARGET_WATER_LEVEL_PERCENT,
+                    DEFAULT_TARGET_WATER_LEVEL_PERCENT,
+                ),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=1, max=100, mode=selector.NumberSelectorMode.BOX)
+            ),
+            vol.Required(
+                CONF_LEVEL_HYSTERESIS_PERCENT,
+                default=defaults.get(
+                    CONF_LEVEL_HYSTERESIS_PERCENT,
+                    DEFAULT_LEVEL_HYSTERESIS_PERCENT,
+                ),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, max=30, mode=selector.NumberSelectorMode.BOX)
+            ),
+            vol.Required(
+                CONF_MAX_FILL_RUNTIME_MINUTES,
+                default=defaults.get(
+                    CONF_MAX_FILL_RUNTIME_MINUTES,
+                    DEFAULT_MAX_FILL_RUNTIME_MINUTES,
+                ),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=1, max=600, mode=selector.NumberSelectorMode.BOX)
+            ),
+        }
+    )
+
+
+def _settings_notifications_schema(defaults: dict[str, Any]) -> vol.Schema:
+    return vol.Schema(
+        {
+            vol.Required(
+                CONF_ENABLE_NOTIFICATIONS,
+                default=defaults.get(
+                    CONF_ENABLE_NOTIFICATIONS, DEFAULT_ENABLE_NOTIFICATIONS
+                ),
+            ): bool,
+            vol.Required(
+                CONF_NOTIFY_SERVICE,
+                default=defaults.get(CONF_NOTIFY_SERVICE, DEFAULT_NOTIFY_SERVICE),
+            ): str,
+            vol.Required(
+                CONF_PH_MIN_THRESHOLD,
+                default=defaults.get(CONF_PH_MIN_THRESHOLD, DEFAULT_PH_MIN_THRESHOLD),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=6.0, max=8.0, step=0.05, mode=selector.NumberSelectorMode.BOX
+                )
+            ),
+            vol.Required(
+                CONF_PH_MAX_THRESHOLD,
+                default=defaults.get(CONF_PH_MAX_THRESHOLD, DEFAULT_PH_MAX_THRESHOLD),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=6.0, max=8.5, step=0.05, mode=selector.NumberSelectorMode.BOX
+                )
+            ),
+            vol.Required(
+                CONF_ORP_ALERT_THRESHOLD,
+                default=defaults.get(
+                    CONF_ORP_ALERT_THRESHOLD, DEFAULT_ORP_ALERT_THRESHOLD
+                ),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=300, max=900, mode=selector.NumberSelectorMode.BOX
+                )
+            ),
+            vol.Required(
+                CONF_NOTIFICATION_COOLDOWN_MINUTES,
+                default=defaults.get(
+                    CONF_NOTIFICATION_COOLDOWN_MINUTES,
+                    DEFAULT_NOTIFICATION_COOLDOWN_MINUTES,
+                ),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=5, max=1440, mode=selector.NumberSelectorMode.BOX
+                )
+            ),
+        }
+    )
+
+
 def _default_options() -> dict[str, Any]:
     return {
         CONF_SCAN_INTERVAL: DEFAULT_SCAN_INTERVAL,
@@ -519,6 +734,7 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
     def __init__(self) -> None:
         self._discovered_nodes: set[str] = set()
         self._user_input: dict[str, Any] = {}
+        self._settings_input: dict[str, Any] = {}
 
     async def async_step_zeroconf(self, discovery_info: Any) -> ConfigFlowResult:
         """Capture ESPHome discovery data for user convenience."""
@@ -654,7 +870,7 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
                 if unresolved:
                     errors["base"] = "node_not_found"
                 else:
-                    return await self.async_step_settings()
+                    return await self.async_step_settings_general()
 
         return self.async_show_form(
             step_id="nodes",
@@ -665,13 +881,92 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
             },
         )
 
+    def _settings_defaults(self) -> dict[str, Any]:
+        return {**_default_options(), **self._settings_input}
+
     async def async_step_settings(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Step 3: Confirm and adjust integration settings before creation."""
-        defaults = {**_default_options(), **self._user_input}
+        """Compatibility step kept for older deep-links/tests."""
+        return await self.async_step_settings_general(user_input)
+
+    async def async_step_settings_general(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Step 3: General settings."""
+        defaults = self._settings_defaults()
 
         if user_input is not None:
+            self._settings_input.update(user_input)
+            return await self.async_step_settings_chlorine()
+
+        return self.async_show_form(
+            step_id="settings_general",
+            data_schema=_settings_general_schema(defaults),
+            errors={},
+        )
+
+    async def async_step_settings_chlorine(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Step 4: Chlorine and ORP settings."""
+        defaults = self._settings_defaults()
+
+        if user_input is not None:
+            self._settings_input.update(user_input)
+            return await self.async_step_settings_acid()
+
+        return self.async_show_form(
+            step_id="settings_chlorine",
+            data_schema=_settings_chlorine_schema(defaults),
+            errors={},
+        )
+
+    async def async_step_settings_acid(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Step 5: Acid settings."""
+        defaults = self._settings_defaults()
+
+        if user_input is not None:
+            self._settings_input.update(user_input)
+            if self._user_input.get(CONF_LEVEL_ENABLED):
+                return await self.async_step_settings_water_level()
+            return await self.async_step_settings_notifications()
+
+        return self.async_show_form(
+            step_id="settings_acid",
+            data_schema=_settings_acid_schema(defaults),
+            errors={},
+        )
+
+    async def async_step_settings_water_level(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Step 6: Water level settings (only when level role is enabled)."""
+        defaults = self._settings_defaults()
+
+        if user_input is not None:
+            self._settings_input.update(user_input)
+            return await self.async_step_settings_notifications()
+
+        if not self._user_input.get(CONF_LEVEL_ENABLED):
+            return await self.async_step_settings_notifications()
+
+        return self.async_show_form(
+            step_id="settings_water_level",
+            data_schema=_settings_water_level_schema(defaults),
+            errors={},
+        )
+
+    async def async_step_settings_notifications(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Final settings step: notifications and alert thresholds."""
+        defaults = self._settings_defaults()
+
+        if user_input is not None:
+            self._settings_input.update(user_input)
             selected: list[str] = [str(self._user_input[CONF_CHEMISTRY_NODE])]
             enabled_node_values: list[str | None] = [
                 str(self._user_input[CONF_PRESSURE_NODE])
@@ -701,12 +996,12 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
             return self.async_create_entry(
                 title=title,
                 data=self._user_input,
-                options=user_input,
+                options=self._settings_input,
             )
 
         return self.async_show_form(
-            step_id="settings",
-            data_schema=_options_schema(defaults),
+            step_id="settings_notifications",
+            data_schema=_settings_notifications_schema(defaults),
             errors={},
         )
 

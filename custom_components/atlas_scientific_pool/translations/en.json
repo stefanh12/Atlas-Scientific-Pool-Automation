@@ -23,48 +23,80 @@
           "heat_pump_node": "Heat pump"
         }
       },
-      "settings": {
-        "title": "Review pool settings",
-        "description": "Review and adjust integration settings before creating the pool entry. You can change these later in integration options.",
+      "settings_general": {
+        "title": "General settings",
+        "description": "Configure core runtime and safety behavior.",
         "data": {
-          "scan_interval": "Polling interval (seconds)",
           "winter_mode": "Winter mode (pause all logic and notifications)",
+          "scan_interval": "Polling interval (seconds)",
+          "pool_volume_liters": "Pool volume (liters)"
+        },
+        "data_description": {
+          "winter_mode": "Master override: pauses all dosing, pump controls, and automations, including notifications, while still reading sensor values"
+        }
+      },
+      "settings_chlorine": {
+        "title": "Chlorine settings",
+        "description": "Configure chlorine dosing limits and ORP regulation.",
+        "data": {
           "max_chlorine_dose_ml": "Maximum chlorine dose (ml)",
-          "max_acid_dose_ml": "Maximum acid dose (ml)",
           "chlorine_cooldown_seconds": "Chlorine cooldown (seconds)",
-          "acid_cooldown_seconds": "Acid cooldown (seconds)",
           "default_chlorine_dose_ml": "Default chlorine dose (ml)",
-          "default_acid_dose_ml": "Default acid dose (ml)",
-          "pool_volume_liters": "Pool volume (liters)",
           "chlorine_strength_percent": "Chlorine strength (%)",
           "max_ppm_increase_per_dose": "Max free chlorine increase per dose (ppm)",
-          "acid_strength_percent": "Acid strength (%)",
-          "max_ph_drop_per_dose": "Max pH drop per dose",
           "default_target_orp": "Default target ORP (mV)",
-          "orp_hysteresis_mv": "ORP hysteresis (mV)",
-          "enable_notifications": "Enable alert notifications",
-          "notify_service": "Notify service",
-          "ph_min_threshold": "pH low alert threshold",
-          "ph_max_threshold": "pH high alert threshold",
-          "orp_alert_threshold": "ORP low alert threshold (mV)",
-          "notification_cooldown_minutes": "Minimum minutes between repeat alerts",
+          "orp_hysteresis_mv": "ORP hysteresis (mV)"
+        },
+        "data_description": {
+          "max_chlorine_dose_ml": "Hard upper limit for a single chlorine dose regardless of chemistry caps",
+          "chlorine_cooldown_seconds": "Minimum time that must pass before chlorine can be dosed again",
+          "chlorine_strength_percent": "Available chlorine concentration of your product, used to compute the pool-size dose cap",
+          "max_ppm_increase_per_dose": "Maximum allowed rise in free chlorine from a single dose",
+          "orp_hysteresis_mv": "Dose is triggered when ORP drops below target minus this value"
+        }
+      },
+      "settings_acid": {
+        "title": "Acid settings",
+        "description": "Configure acid dosing limits and safety thresholds.",
+        "data": {
+          "max_acid_dose_ml": "Maximum acid dose (ml)",
+          "acid_cooldown_seconds": "Acid cooldown (seconds)",
+          "default_acid_dose_ml": "Default acid dose (ml)",
+          "acid_strength_percent": "Acid strength (%)",
+          "max_ph_drop_per_dose": "Max pH drop per dose"
+        },
+        "data_description": {
+          "max_acid_dose_ml": "Hard upper limit for a single acid dose regardless of chemistry caps",
+          "acid_cooldown_seconds": "Minimum time that must pass before acid can be dosed again",
+          "acid_strength_percent": "Concentration of your acid product, used to compute the pool-size dose cap",
+          "max_ph_drop_per_dose": "Maximum allowed pH decrease from a single dose"
+        }
+      },
+      "settings_water_level": {
+        "title": "Water level settings",
+        "description": "Configure refill targets and runtime limits.",
+        "data": {
           "default_target_water_level_percent": "Default target water level (%)",
           "level_hysteresis_percent": "Water-level hysteresis (%)",
           "max_fill_runtime_minutes": "Max fill runtime before auto-stop (minutes)"
         },
         "data_description": {
-          "winter_mode": "Master override: pauses all dosing, pump controls, and automations, including notifications, while still reading sensor values",
-          "max_chlorine_dose_ml": "Hard upper limit for a single chlorine dose regardless of chemistry caps",
-          "max_acid_dose_ml": "Hard upper limit for a single acid dose regardless of chemistry caps",
-          "chlorine_cooldown_seconds": "Minimum time that must pass before chlorine can be dosed again",
-          "acid_cooldown_seconds": "Minimum time that must pass before acid can be dosed again",
-          "orp_hysteresis_mv": "Dose is triggered when ORP drops below target minus this value",
           "level_hysteresis_percent": "Fill starts when level is below target minus this value",
-          "max_fill_runtime_minutes": "Safety timeout: fill valve is force-closed when exceeded",
-          "chlorine_strength_percent": "Available chlorine concentration of your product, used to compute the pool-size dose cap",
-          "max_ppm_increase_per_dose": "Maximum allowed rise in free chlorine from a single dose",
-          "acid_strength_percent": "Concentration of your acid product, used to compute the pool-size dose cap",
-          "max_ph_drop_per_dose": "Maximum allowed pH decrease from a single dose",
+          "max_fill_runtime_minutes": "Safety timeout: fill valve is force-closed when exceeded"
+        }
+      },
+      "settings_notifications": {
+        "title": "Notifications",
+        "description": "Configure alert thresholds and notification behavior.",
+        "data": {
+          "enable_notifications": "Enable alert notifications",
+          "notify_service": "Notify service",
+          "ph_min_threshold": "pH low alert threshold",
+          "ph_max_threshold": "pH high alert threshold",
+          "orp_alert_threshold": "ORP low alert threshold (mV)",
+          "notification_cooldown_minutes": "Minimum minutes between repeat alerts"
+        },
+        "data_description": {
           "notify_service": "Full HA service name, e.g. notify.mobile_app_myphone. Leave empty to use only the persistent notification panel",
           "notification_cooldown_minutes": "Prevents repeated notifications for the same active condition"
         }
