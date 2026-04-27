@@ -5,13 +5,21 @@ from __future__ import annotations
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers import selector
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.atlas_scientific_pool.config_flow import _build_discovery_map
+from custom_components.atlas_scientific_pool.config_flow import (
+    _available_notify_services,
+    _build_discovery_map,
+    _node_schema,
+    _options_schema,
+    _settings_notifications_schema,
+)
 from custom_components.atlas_scientific_pool.const import (
     CONF_HEAT_PUMP_ENABLED,
     CONF_HEAT_PUMP_NODE,
     CONF_LEVEL_ENABLED,
+    CONF_NOTIFY_SERVICE,
     CONF_PRESSURE_ENABLED,
     CONF_PUMP_ENABLED,
     CONF_PUMP_NODE,
@@ -173,6 +181,52 @@ async def test_user_flow_enabled_roles_require_node_names(
     )
     assert result3["type"] == FlowResultType.FORM
     assert result3["errors"]["base"] == "required_nodes_missing"
+
+
+def test_node_schema_uses_select_selector_with_custom_values() -> None:
+    """Node fields should suggest discovered nodes without blocking manual entries."""
+    schema = _node_schema({}, ["pool-ezo", "pool-level"])
+    chemistry_selector = next(iter(schema.schema.values()))
+
+    assert isinstance(chemistry_selector, selector.SelectSelector)
+    assert chemistry_selector.config["options"] == ["pool-ezo", "pool-level"]
+    assert chemistry_selector.config["custom_value"] is True
+
+
+def test_notify_services_are_exposed_as_autocomplete_options(
+    hass: HomeAssistant,
+) -> None:
+    """Notify service fields should suggest existing HA notify services."""
+    hass.services.async_register("notify", "mobile_app_phone", lambda call: None)
+    hass.services.async_register("notify", "family_group", lambda call: None)
+
+    available_services = _available_notify_services(hass)
+
+    assert available_services == ["notify.family_group", "notify.mobile_app_phone"]
+
+    notifications_schema = _settings_notifications_schema({}, available_services)
+    notify_selector = notifications_schema.schema[
+        next(
+            marker
+            for marker in notifications_schema.schema
+            if marker.schema == CONF_NOTIFY_SERVICE
+        )
+    ]
+
+    assert isinstance(notify_selector, selector.SelectSelector)
+    assert notify_selector.config["options"] == available_services
+    assert notify_selector.config["custom_value"] is True
+
+
+def test_options_schema_uses_notify_autocomplete() -> None:
+    """Options flow should reuse notify service autocomplete for the same field."""
+    schema = _options_schema({}, ["notify.mobile_app_phone"])
+    notify_selector = schema.schema[
+        next(marker for marker in schema.schema if marker.schema == CONF_NOTIFY_SERVICE)
+    ]
+
+    assert isinstance(notify_selector, selector.SelectSelector)
+    assert notify_selector.config["options"] == ["notify.mobile_app_phone"]
 
 
 async def test_user_flow_chemistry_only_keeps_other_roles_disabled(

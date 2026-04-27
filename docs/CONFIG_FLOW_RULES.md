@@ -4,11 +4,11 @@ This document is the authoritative specification for the three-step onboarding f
 
 ## Overview of the three steps
 
-| Step | ID | Purpose |
-|------|----|---------|
-| 1 | `roles` | Choose which optional pool subsystems are present |
-| 2 | `nodes` | Assign an ESPHome node to each enabled role |
-| 3 | `settings` | Tune automation and chemistry parameters |
+| Step | ID         | Purpose                                           |
+| ---- | ---------- | ------------------------------------------------- |
+| 1    | `roles`    | Choose which optional pool subsystems are present |
+| 2    | `nodes`    | Assign an ESPHome node to each enabled role       |
+| 3    | `settings` | Tune automation and chemistry parameters          |
 
 The options flow (`init`) re-uses step 3's schema, reading role flags from the stored config-entry data.
 
@@ -26,6 +26,8 @@ If a role checkbox is ticked in step 1 its corresponding node field in step 2 is
 
 Submitting an empty node name for an enabled role returns the `required_nodes_missing` error and keeps the user on step 2.
 
+Node fields in step 2 must offer autocomplete suggestions from discovered or already-configured ESPHome node names, while still allowing a manual custom value when discovery is incomplete.
+
 ---
 
 ## Rule 2 – Step 3 only shows settings for enabled roles
@@ -35,6 +37,8 @@ The settings form (step 3 and options flow) is filtered by the role flags stored
 - **Chemistry settings** (dosing parameters, ORP automation, notifications, pool volume, chemical strengths) — always shown; chemistry is always mandatory.
 - **Level runtime settings** (target level, hysteresis, max fill runtime) — shown only when `CONF_LEVEL_ENABLED` is `True`.
 - Pump and heat-pump have no additional user-facing settings after applying rules 5 and 6.
+
+The `CONF_NOTIFY_SERVICE` field in the final notifications step and the options flow must offer autocomplete suggestions from currently registered `notify.*` Home Assistant services, while still allowing a manual custom value or an empty value.
 
 ---
 
@@ -65,15 +69,15 @@ Role selection and control enablement are decided in step 1. They are stored in 
 
 The ESPHome devices already expose their own entities in Home Assistant. The integration must not re-expose or ask the user to configure the underlying entity mappings. The following constants are kept in `_default_options()` so the coordinator always has a fallback, but they are **never shown** in any config or options form:
 
-| Category | Constants |
-|----------|-----------|
-| Chemistry dosing controls | `CONF_CHLORINE_DOSE_BUTTON`, `CONF_ACID_DOSE_BUTTON`, `CONF_CHLORINE_STOP_BUTTON`, `CONF_ACID_STOP_BUTTON` |
-| Chemistry device numbers | `CONF_CHLORINE_VOLUME_NUMBER`, `CONF_ACID_VOLUME_NUMBER` |
-| Chemistry running sensors | `CONF_CHLORINE_RUNNING_BINARY_SENSOR`, `CONF_ACID_RUNNING_BINARY_SENSOR` |
-| Sensor object IDs | `CONF_ORP_SENSOR_OBJECT_ID`, `CONF_PH_SENSOR_OBJECT_ID`, `CONF_LEVEL_SENSOR_OBJECT_ID` |
-| Fill valve controls | `CONF_FILL_SWITCH_OBJECT_ID`, `CONF_FILL_START_BUTTON_OBJECT_ID`, `CONF_FILL_STOP_BUTTON_OBJECT_ID`, `CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID`, `CONF_FILL_DEVICE_NAME` |
-| Pump relay object IDs | `CONF_PUMP_POWER_SWITCH_OBJECT_ID`, `CONF_PUMP_SPEED_LOW_SWITCH_OBJECT_ID`, `CONF_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID`, `CONF_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID` |
-| Pump abstraction toggle | `CONF_ENABLE_PUMP_SPEED_ABSTRACTION` |
+| Category                  | Constants                                                                                                                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Chemistry dosing controls | `CONF_CHLORINE_DOSE_BUTTON`, `CONF_ACID_DOSE_BUTTON`, `CONF_CHLORINE_STOP_BUTTON`, `CONF_ACID_STOP_BUTTON`                                                                |
+| Chemistry device numbers  | `CONF_CHLORINE_VOLUME_NUMBER`, `CONF_ACID_VOLUME_NUMBER`                                                                                                                  |
+| Chemistry running sensors | `CONF_CHLORINE_RUNNING_BINARY_SENSOR`, `CONF_ACID_RUNNING_BINARY_SENSOR`                                                                                                  |
+| Sensor object IDs         | `CONF_ORP_SENSOR_OBJECT_ID`, `CONF_PH_SENSOR_OBJECT_ID`, `CONF_LEVEL_SENSOR_OBJECT_ID`                                                                                    |
+| Fill valve controls       | `CONF_FILL_SWITCH_OBJECT_ID`, `CONF_FILL_START_BUTTON_OBJECT_ID`, `CONF_FILL_STOP_BUTTON_OBJECT_ID`, `CONF_FILL_RUNNING_BINARY_SENSOR_OBJECT_ID`, `CONF_FILL_DEVICE_NAME` |
+| Pump relay object IDs     | `CONF_PUMP_POWER_SWITCH_OBJECT_ID`, `CONF_PUMP_SPEED_LOW_SWITCH_OBJECT_ID`, `CONF_PUMP_SPEED_MEDIUM_SWITCH_OBJECT_ID`, `CONF_PUMP_SPEED_HIGH_SWITCH_OBJECT_ID`            |
+| Pump abstraction toggle   | `CONF_ENABLE_PUMP_SPEED_ABSTRACTION`                                                                                                                                      |
 
 ---
 

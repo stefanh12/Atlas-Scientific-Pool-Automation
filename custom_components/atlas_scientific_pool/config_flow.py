@@ -155,12 +155,40 @@ def _roles_schema(defaults: dict[str, Any]) -> vol.Schema:
     )
 
 
-def _node_schema(defaults: dict[str, Any]) -> vol.Schema:
-    schema: dict[vol.Marker, type[str]] = {
+def _node_selector(available_nodes: list[str]) -> selector.SelectSelector:
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=available_nodes,
+            custom_value=True,
+            multiple=False,
+            mode=selector.SelectSelectorMode.DROPDOWN,
+        )
+    )
+
+
+def _notify_service_selector(available_services: list[str]) -> selector.SelectSelector:
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=available_services,
+            custom_value=True,
+            multiple=False,
+            mode=selector.SelectSelectorMode.DROPDOWN,
+        )
+    )
+
+
+def _available_notify_services(hass: Any) -> list[str]:
+    services = hass.services.async_services().get("notify", {})
+    return sorted(f"notify.{service_name}" for service_name in services)
+
+
+def _node_schema(defaults: dict[str, Any], available_nodes: list[str]) -> vol.Schema:
+    node_selector = _node_selector(available_nodes)
+    schema: dict[vol.Marker, Any] = {
         vol.Required(
             CONF_CHEMISTRY_NODE,
             default=defaults.get(CONF_CHEMISTRY_NODE, ""),
-        ): str,
+        ): node_selector,
     }
 
     if defaults.get(CONF_PRESSURE_ENABLED, DEFAULT_PRESSURE_ENABLED):
@@ -169,7 +197,7 @@ def _node_schema(defaults: dict[str, Any]) -> vol.Schema:
                 CONF_PRESSURE_NODE,
                 default=defaults.get(CONF_PRESSURE_NODE, ""),
             )
-        ] = str
+        ] = node_selector
 
     if defaults.get(CONF_LEVEL_ENABLED, DEFAULT_LEVEL_ENABLED):
         schema[
@@ -177,7 +205,7 @@ def _node_schema(defaults: dict[str, Any]) -> vol.Schema:
                 CONF_LEVEL_NODE,
                 default=defaults.get(CONF_LEVEL_NODE, ""),
             )
-        ] = str
+        ] = node_selector
 
     if defaults.get(CONF_PUMP_ENABLED, DEFAULT_PUMP_ENABLED):
         schema[
@@ -185,7 +213,7 @@ def _node_schema(defaults: dict[str, Any]) -> vol.Schema:
                 CONF_PUMP_NODE,
                 default=defaults.get(CONF_PUMP_NODE, ""),
             )
-        ] = str
+        ] = node_selector
 
     if defaults.get(CONF_HEAT_PUMP_ENABLED, DEFAULT_HEAT_PUMP_ENABLED):
         schema[
@@ -193,7 +221,7 @@ def _node_schema(defaults: dict[str, Any]) -> vol.Schema:
                 CONF_HEAT_PUMP_NODE,
                 default=defaults.get(CONF_HEAT_PUMP_NODE, ""),
             )
-        ] = str
+        ] = node_selector
 
     return vol.Schema(schema)
 
@@ -268,8 +296,9 @@ def _build_discovery_map(node_names: list[str]) -> dict[str, str]:
     return result
 
 
-def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
+def _options_schema(defaults: dict[str, Any], available_notify_services: list[str]) -> vol.Schema:
     level_enabled = defaults.get(CONF_LEVEL_ENABLED, DEFAULT_LEVEL_ENABLED)
+    notify_service_selector = _notify_service_selector(available_notify_services)
 
     schema: dict[vol.Marker, Any] = {
         # Rule 4: winter mode is the master override - always shown
@@ -389,7 +418,7 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
         vol.Required(
             CONF_NOTIFY_SERVICE,
             default=defaults.get(CONF_NOTIFY_SERVICE, DEFAULT_NOTIFY_SERVICE),
-        ): str,
+        ): notify_service_selector,
         vol.Required(
             CONF_PH_MIN_THRESHOLD,
             default=defaults.get(CONF_PH_MIN_THRESHOLD, DEFAULT_PH_MIN_THRESHOLD),
@@ -617,7 +646,10 @@ def _settings_water_level_schema(defaults: dict[str, Any]) -> vol.Schema:
     )
 
 
-def _settings_notifications_schema(defaults: dict[str, Any]) -> vol.Schema:
+def _settings_notifications_schema(
+    defaults: dict[str, Any], available_notify_services: list[str]
+) -> vol.Schema:
+    notify_service_selector = _notify_service_selector(available_notify_services)
     return vol.Schema(
         {
             vol.Required(
@@ -629,7 +661,7 @@ def _settings_notifications_schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Required(
                 CONF_NOTIFY_SERVICE,
                 default=defaults.get(CONF_NOTIFY_SERVICE, DEFAULT_NOTIFY_SERVICE),
-            ): str,
+            ): notify_service_selector,
             vol.Required(
                 CONF_PH_MIN_THRESHOLD,
                 default=defaults.get(CONF_PH_MIN_THRESHOLD, DEFAULT_PH_MIN_THRESHOLD),
@@ -874,7 +906,7 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
 
         return self.async_show_form(
             step_id="nodes",
-            data_schema=_node_schema(defaults),
+            data_schema=_node_schema(defaults, discovery_candidates),
             errors=errors,
             description_placeholders={
                 "discovered": ", ".join(available_nodes or discovered_nodes) or "none"
@@ -964,6 +996,7 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
     ) -> ConfigFlowResult:
         """Final settings step: notifications and alert thresholds."""
         defaults = self._settings_defaults()
+        available_notify_services = _available_notify_services(self.hass)
 
         if user_input is not None:
             self._settings_input.update(user_input)
@@ -1001,7 +1034,9 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
 
         return self.async_show_form(
             step_id="settings_notifications",
-            data_schema=_settings_notifications_schema(defaults),
+            data_schema=_settings_notifications_schema(
+                defaults, available_notify_services
+            ),
             errors={},
         )
 
@@ -1027,6 +1062,8 @@ class AtlasScientificPoolOptionsFlow(config_entries.OptionsFlow):
         defaults = {**self._config_entry.data, **self._config_entry.options}
         return self.async_show_form(
             step_id="init",
-            data_schema=_options_schema(defaults),
+            data_schema=_options_schema(
+                defaults, _available_notify_services(self.hass)
+            ),
             errors={},
         )
