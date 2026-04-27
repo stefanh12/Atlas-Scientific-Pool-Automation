@@ -3,7 +3,7 @@
     "flow_title": "Atlas Scientific Pool",
     "step": {
       "roles": {
-        "title": "Välj poolautomation",
+        "title": "1/7 Välj poolautomation",
         "description": "Aktivera olika automationsdelar för din poolinstallation. Minsta installationen är Atlas Scientific med klor- och syrapumpar.",
         "data": {
           "pressure_enabled": "Aktivera filtertrycksroll",
@@ -13,7 +13,7 @@
         }
       },
       "nodes": {
-        "title": "Konfigurera poolnoder",
+        "title": "2/7 Konfigurera poolnoder",
         "description": "Välj dina enheter som ska användas för övervakning och automation",
         "data": {
           "chemistry_node": "Nodnamn för kemi-ESPHome",
@@ -24,7 +24,7 @@
         }
       },
       "settings_general": {
-        "title": "Allmänna inställningar",
+        "title": "3/7 Allmänna inställningar",
         "description": "Konfigurera grundläggande drift och säkerhetsbeteende.",
         "data": {
           "winter_mode": "Vinterläge (pausa all logik och aviseringar)",
@@ -36,7 +36,7 @@
         }
       },
       "settings_chlorine": {
-        "title": "Klorinställningar",
+        "title": "4/7 Klorinställningar",
         "description": "Konfigurera klordoseringsgränser och ORP-reglering.",
         "data": {
           "max_chlorine_dose_ml": "Maxdos klor (ml)",
@@ -56,7 +56,7 @@
         }
       },
       "settings_acid": {
-        "title": "Syra-inställningar",
+        "title": "5/7 Syra-inställningar",
         "description": "Konfigurera syradoseringsgränser och säkerhetströsklar.",
         "data": {
           "max_acid_dose_ml": "Maxdos syra (ml)",
@@ -73,7 +73,7 @@
         }
       },
       "settings_water_level": {
-        "title": "Vattennivåinställningar",
+        "title": "6/7 Vattennivåinställningar",
         "description": "Konfigurera påfyllningsmål och driftgränser.",
         "data": {
           "default_target_water_level_percent": "Standard målvattennivå (%)",
@@ -86,7 +86,7 @@
         }
       },
       "settings_notifications": {
-        "title": "Aviseringar",
+        "title": "7/7 Aviseringar",
         "description": "Konfigurera larmtrösklar och aviseringsbeteende.",
         "data": {
           "enable_notifications": "Aktivera larmaviseringar",

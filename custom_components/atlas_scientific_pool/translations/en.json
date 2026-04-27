@@ -3,7 +3,7 @@
     "flow_title": "Atlas Scientific Pool",
     "step": {
       "roles": {
-        "title": "Select pool automation",
+        "title": "1/7 Select pool automation",
         "description": "Enable different automations for your pool setup. The minimal setup is with Atlas Scientific setup with chlorine and acid pumps.",
         "data": {
           "pressure_enabled": "Pressure automation",
@@ -13,7 +13,7 @@
         }
       },
       "nodes": {
-        "title": "Configure pool nodes",
+        "title": "2/7 Configure pool nodes",
         "description": "Select your devices that are to be used for monitoring and automation",
         "data": {
           "chemistry_node": "Atlas Scientific EZO Pool Kit",
@@ -24,7 +24,7 @@
         }
       },
       "settings_general": {
-        "title": "General settings",
+        "title": "3/7 General settings",
         "description": "Configure core runtime and safety behavior.",
         "data": {
           "winter_mode": "Winter mode (pause all logic and notifications)",
@@ -36,7 +36,7 @@
         }
       },
       "settings_chlorine": {
-        "title": "Chlorine settings",
+        "title": "4/7 Chlorine settings",
         "description": "Configure chlorine dosing limits and ORP regulation.",
         "data": {
           "max_chlorine_dose_ml": "Maximum chlorine dose (ml)",
@@ -56,7 +56,7 @@
         }
       },
       "settings_acid": {
-        "title": "Acid settings",
+        "title": "5/7 Acid settings",
         "description": "Configure acid dosing limits and safety thresholds.",
         "data": {
           "max_acid_dose_ml": "Maximum acid dose (ml)",
@@ -73,7 +73,7 @@
         }
       },
       "settings_water_level": {
-        "title": "Water level settings",
+        "title": "6/7 Water level settings",
         "description": "Configure refill targets and runtime limits.",
         "data": {
           "default_target_water_level_percent": "Default target water level (%)",
@@ -86,7 +86,7 @@
         }
       },
       "settings_notifications": {
-        "title": "Notifications",
+        "title": "7/7 Notifications",
         "description": "Configure alert thresholds and notification behavior.",
         "data": {
           "enable_notifications": "Enable alert notifications",
