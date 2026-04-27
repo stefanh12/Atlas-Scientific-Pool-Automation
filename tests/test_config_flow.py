@@ -385,6 +385,54 @@ async def test_user_flow_shows_grouped_settings_steps(
     assert result7["step_id"] == "settings_notifications"
 
 
+async def test_user_flow_updates_header_title_placeholders_per_step(
+    hass: HomeAssistant,
+    enable_custom_integrations: bool,
+) -> None:
+    """Active flow context should carry the per-step title used by the dialog header."""
+    del enable_custom_integrations
+    for title in ("pool-ezo", "pool-pressure", "pool-level"):
+        MockConfigEntry(domain="esphome", title=title).add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_USER},
+    )
+    active_flow = hass.config_entries.flow.async_progress_by_handler(DOMAIN)[0]
+    assert active_flow["context"]["title_placeholders"] == {
+        "step_title": "1/7 Select pool automation"
+    }
+
+    result2 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_PRESSURE_ENABLED: True,
+            CONF_LEVEL_ENABLED: True,
+            CONF_PUMP_ENABLED: False,
+            CONF_HEAT_PUMP_ENABLED: False,
+        },
+    )
+    assert result2["step_id"] == "nodes"
+    active_flow = hass.config_entries.flow.async_progress_by_handler(DOMAIN)[0]
+    assert active_flow["context"]["title_placeholders"] == {
+        "step_title": "2/7 Configure pool nodes"
+    }
+
+    result3 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            "chemistry_node": "pool-ezo",
+            "pressure_node": "pool-pressure",
+            "level_node": "pool-level",
+        },
+    )
+    assert result3["step_id"] == "settings_general"
+    active_flow = hass.config_entries.flow.async_progress_by_handler(DOMAIN)[0]
+    assert active_flow["context"]["title_placeholders"] == {
+        "step_title": "3/7 General settings"
+    }
+
+
 def test_discovery_map_prefers_brilix_for_heat_pump() -> None:
     """Ensure Brilix heat pump node is not assigned to the pool pump role."""
     discovery_map = _build_discovery_map(

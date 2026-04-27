@@ -273,6 +273,17 @@ _ROLE_KEYWORDS: dict[str, tuple[str, ...]] = {
 }
 
 
+_STEP_FLOW_TITLES: dict[str, str] = {
+    "roles": "1/7 Select pool automation",
+    "nodes": "2/7 Configure pool nodes",
+    "settings_general": "3/7 General settings",
+    "settings_chlorine": "4/7 Chlorine settings",
+    "settings_acid": "5/7 Acid settings",
+    "settings_water_level": "6/7 Water level settings",
+    "settings_notifications": "7/7 Notifications",
+}
+
+
 def _build_discovery_map(node_names: list[str]) -> dict[str, str]:
     """Infer role -> node mapping from known ESPHome node names."""
     result: dict[str, str] = {}
@@ -838,6 +849,12 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
         self._user_input: dict[str, Any] = {}
         self._settings_input: dict[str, Any] = {}
 
+    def _set_flow_title_for_step(self, step_id: str) -> None:
+        """Update the flow header title for the current step."""
+        self.context["title_placeholders"] = {
+            "step_title": _STEP_FLOW_TITLES[step_id]
+        }
+
     async def async_step_zeroconf(self, discovery_info: Any) -> ConfigFlowResult:
         """Capture ESPHome discovery data for user convenience."""
         node_name = _normalize_node_name(getattr(discovery_info, "name", ""))
@@ -878,6 +895,8 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
                 }
             )
             return await self.async_step_nodes()
+
+        self._set_flow_title_for_step("roles")
 
         return self.async_show_form(
             step_id="roles",
@@ -974,6 +993,8 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
                 else:
                     return await self.async_step_settings_general()
 
+        self._set_flow_title_for_step("nodes")
+
         return self.async_show_form(
             step_id="nodes",
             data_schema=_node_schema(defaults, discovery_candidates),
@@ -1002,6 +1023,8 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
             self._settings_input.update(user_input)
             return await self.async_step_settings_chlorine()
 
+        self._set_flow_title_for_step("settings_general")
+
         return self.async_show_form(
             step_id="settings_general",
             data_schema=_settings_general_schema(defaults),
@@ -1017,6 +1040,8 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
         if user_input is not None:
             self._settings_input.update(user_input)
             return await self.async_step_settings_acid()
+
+        self._set_flow_title_for_step("settings_chlorine")
 
         return self.async_show_form(
             step_id="settings_chlorine",
@@ -1036,6 +1061,8 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
                 return await self.async_step_settings_water_level()
             return await self.async_step_settings_notifications()
 
+        self._set_flow_title_for_step("settings_acid")
+
         return self.async_show_form(
             step_id="settings_acid",
             data_schema=_settings_acid_schema(defaults),
@@ -1054,6 +1081,8 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
 
         if not self._user_input.get(CONF_LEVEL_ENABLED):
             return await self.async_step_settings_notifications()
+
+        self._set_flow_title_for_step("settings_water_level")
 
         return self.async_show_form(
             step_id="settings_water_level",
@@ -1101,6 +1130,8 @@ class AtlasScientificPoolConfigFlow(  # type: ignore[call-arg]
                 data=self._user_input,
                 options=self._settings_input,
             )
+
+        self._set_flow_title_for_step("settings_notifications")
 
         return self.async_show_form(
             step_id="settings_notifications",

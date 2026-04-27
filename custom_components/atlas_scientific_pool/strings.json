@@ -1,7 +1,7 @@
 {
   "title": "Atlas Scientific Pool",
   "config": {
-    "flow_title": "Atlas Scientific Pool",
+    "flow_title": "{step_title}",
     "step": {
       "roles": {
         "title": "1/7 Select pool automation",
