@@ -3,24 +3,24 @@
     "flow_title": "Atlas Scientific Pool",
     "step": {
       "roles": {
-        "title": "Select pool roles",
-        "description": "Available ESPHome nodes in Home Assistant: {discovered}",
+        "title": "Select pool automation",
+        "description": "Enable different automations for your pool setup. The minimal setup is with Atlas Scientific setup with chlorine and acid pumps.",
         "data": {
-          "pressure_enabled": "Enable filter pressure role",
-          "level_enabled": "Enable water level role",
-          "pump_enabled": "Enable pool pump role",
-          "heat_pump_enabled": "Enable heat pump role"
+          "pressure_enabled": "Pressure automation",
+          "level_enabled": "Water level automation",
+          "pump_enabled": "Pump automation",
+          "heat_pump_enabled": "Heat pump automation"
         }
       },
       "nodes": {
         "title": "Configure pool nodes",
-        "description": "Available ESPHome nodes in Home Assistant: {discovered}",
+        "description": "Select your devices that are to be used for monitoring and automation",
         "data": {
-          "chemistry_node": "Chemistry ESPHome node name",
-          "pressure_node": "Filter pressure ESPHome node name",
-          "level_node": "Water level ESPHome node name",
-          "pump_node": "Pool pump ESPHome node name",
-          "heat_pump_node": "Heat pump ESPHome node name"
+          "chemistry_node": "Atlas Scientific EZO Pool Kit",
+          "pressure_node": "Filter pressure monitor",
+          "level_node": "Water level monitor",
+          "pump_node": "Pool pump",
+          "heat_pump_node": "Heat pump"
         }
       }
     },
