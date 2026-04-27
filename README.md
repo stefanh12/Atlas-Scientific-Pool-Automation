@@ -172,7 +172,6 @@ Cooldown is split per chemical using separate settings: `chlorine_cooldown_secon
 
 | Setting                 | Description                                                                  | Default | Range   |
 | ----------------------- | ---------------------------------------------------------------------------- | ------- | ------- |
-| `enable_orp_automation` | Automatically dose chlorine when ORP drops below the target minus hysteresis | `false` | —       |
 | `default_target_orp`    | Pre-filled value for the **Target ORP** number entity (mV)                   | `700`   | 400–950 |
 | `orp_hysteresis_mv`     | ORP must be this many mV below target before automation doses (mV)           | `15`    | 0–100   |
 
@@ -182,7 +181,6 @@ Shown only when the **water level role** is enabled.
 
 | Setting                              | Description                                                                    | Default | Range |
 | ------------------------------------ | ------------------------------------------------------------------------------ | ------- | ----- |
-| `enable_level_automation`            | Automatically start/stop fill valve when water level goes out of range         | `false` | —     |
 | `default_target_water_level_percent` | Pre-filled value for the **Target water level** number entity (%)              | `85`    | 1–100 |
 | `level_hysteresis_percent`           | Level must drop this far below target before filling starts (%)                | `3`     | 0–30  |
 | `max_fill_runtime_minutes`           | Maximum continuous fill time before automation force-stops the valve (minutes) | `45`    | 1–600 |

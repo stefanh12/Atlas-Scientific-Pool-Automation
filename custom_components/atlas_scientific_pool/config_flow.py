@@ -363,13 +363,6 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
             selector.NumberSelectorConfig(min=0.01, max=1, mode=selector.NumberSelectorMode.BOX)
         ),
         vol.Required(
-            CONF_ENABLE_ORP_AUTOMATION,
-            default=defaults.get(
-                CONF_ENABLE_ORP_AUTOMATION,
-                DEFAULT_ENABLE_ORP_AUTOMATION,
-            ),
-        ): bool,
-        vol.Required(
             CONF_DEFAULT_TARGET_ORP,
             default=defaults.get(CONF_DEFAULT_TARGET_ORP, DEFAULT_TARGET_ORP),
         ): selector.NumberSelector(
@@ -432,13 +425,6 @@ def _options_schema(defaults: dict[str, Any]) -> vol.Schema:
 
     # Rule 2: level-specific settings only shown when level role is enabled
     if level_enabled:
-        schema[vol.Required(
-            CONF_ENABLE_LEVEL_AUTOMATION,
-            default=defaults.get(
-                CONF_ENABLE_LEVEL_AUTOMATION,
-                DEFAULT_ENABLE_LEVEL_AUTOMATION,
-            ),
-        )] = bool
         schema[vol.Required(
             CONF_DEFAULT_TARGET_WATER_LEVEL_PERCENT,
             default=defaults.get(

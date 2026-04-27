@@ -40,7 +40,6 @@
           "max_ppm_increase_per_dose": "Max klörjonsökning per dosering (ppm)",
           "acid_strength_percent": "Syrastyrka (%)",
           "max_ph_drop_per_dose": "Max pH-sänkning per dosering",
-          "enable_orp_automation": "Aktivera ORP-baserad klorautomatik",
           "default_target_orp": "Standard mål-ORP (mV)",
           "orp_hysteresis_mv": "ORP-hysteres (mV)",
           "enable_notifications": "Aktivera larmaviseringar",
@@ -49,7 +48,6 @@
           "ph_max_threshold": "Larm vid högt pH",
           "orp_alert_threshold": "Larm vid lågt ORP (mV)",
           "notification_cooldown_minutes": "Minsta antal minuter mellan upprepade larm",
-          "enable_level_automation": "Aktivera automatisk påfyllning",
           "default_target_water_level_percent": "Standard målvattennivå (%)",
           "level_hysteresis_percent": "Vattennivåhysteres (%)",
           "max_fill_runtime_minutes": "Max påfyllningstid innan automatisk stopp (minuter)"
@@ -100,7 +98,6 @@
           "max_ppm_increase_per_dose": "Max klörjonsökning per dosering (ppm)",
           "acid_strength_percent": "Syrastyrka (%)",
           "max_ph_drop_per_dose": "Max pH-sänkning per dosering",
-          "enable_orp_automation": "Aktivera ORP-baserad klorautomatik",
           "default_target_orp": "Standard mål-ORP (mV)",
           "orp_hysteresis_mv": "ORP-hysteres (mV)",
           "enable_notifications": "Aktivera larmaviseringar",
@@ -109,7 +106,6 @@
           "ph_max_threshold": "Larm vid högt pH",
           "orp_alert_threshold": "Larm vid lågt ORP (mV)",
           "notification_cooldown_minutes": "Minsta antal minuter mellan upprepade larm",
-          "enable_level_automation": "Aktivera automatisk påfyllning",
           "default_target_water_level_percent": "Standard målvattennivå (%)",
           "level_hysteresis_percent": "Vattennivåhysteres (%)",
           "max_fill_runtime_minutes": "Max påfyllningstid innan automatisk stopp (minuter)"

@@ -40,7 +40,6 @@
           "max_ppm_increase_per_dose": "Max free chlorine increase per dose (ppm)",
           "acid_strength_percent": "Acid strength (%)",
           "max_ph_drop_per_dose": "Max pH drop per dose",
-          "enable_orp_automation": "Enable ORP-based chlorine automation",
           "default_target_orp": "Default target ORP (mV)",
           "orp_hysteresis_mv": "ORP hysteresis (mV)",
           "enable_notifications": "Enable alert notifications",
@@ -49,7 +48,6 @@
           "ph_max_threshold": "pH high alert threshold",
           "orp_alert_threshold": "ORP low alert threshold (mV)",
           "notification_cooldown_minutes": "Minimum minutes between repeat alerts",
-          "enable_level_automation": "Enable water-level fill automation",
           "default_target_water_level_percent": "Default target water level (%)",
           "level_hysteresis_percent": "Water-level hysteresis (%)",
           "max_fill_runtime_minutes": "Max fill runtime before auto-stop (minutes)"
@@ -100,7 +98,6 @@
           "max_ppm_increase_per_dose": "Max free chlorine increase per dose (ppm)",
           "acid_strength_percent": "Acid strength (%)",
           "max_ph_drop_per_dose": "Max pH drop per dose",
-          "enable_orp_automation": "Enable ORP-based chlorine automation",
           "default_target_orp": "Default target ORP (mV)",
           "orp_hysteresis_mv": "ORP hysteresis (mV)",
           "enable_notifications": "Enable alert notifications",
@@ -109,7 +106,6 @@
           "ph_max_threshold": "pH high alert threshold",
           "orp_alert_threshold": "ORP low alert threshold (mV)",
           "notification_cooldown_minutes": "Minimum minutes between repeat alerts",
-          "enable_level_automation": "Enable water-level fill automation",
           "default_target_water_level_percent": "Default target water level (%)",
           "level_hysteresis_percent": "Water-level hysteresis (%)",
           "max_fill_runtime_minutes": "Max fill runtime before auto-stop (minutes)"

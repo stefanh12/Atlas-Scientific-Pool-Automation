@@ -229,10 +229,11 @@ async def test_user_flow_shows_settings_as_last_step(
     assert result2["step_id"] == "nodes"
     assert result3["type"] == FlowResultType.FORM
     assert result3["step_id"] == "settings"
-    # Rule 2: level settings visible because level_enabled=True
+    # Rule 2: level-specific runtime settings visible because level_enabled=True
     keys = {marker.schema for marker in result3["data_schema"].schema}
     assert "max_fill_runtime_minutes" in keys
-    assert "enable_level_automation" in keys
+    assert "enable_level_automation" not in keys
+    assert "enable_orp_automation" not in keys
 
 
 def test_discovery_map_prefers_brilix_for_heat_pump() -> None:
@@ -265,7 +266,8 @@ async def test_options_flow_shows_level_settings_when_level_enabled(
     entry_with_level.add_to_hass(hass)
     result = await hass.config_entries.options.async_init(entry_with_level.entry_id)
     keys_level = {marker.schema for marker in result["data_schema"].schema}
-    assert "enable_level_automation" in keys_level
+    assert "enable_level_automation" not in keys_level
+    assert "enable_orp_automation" not in keys_level
     assert "max_fill_runtime_minutes" in keys_level
 
     entry_no_level = MockConfigEntry(
@@ -277,4 +279,5 @@ async def test_options_flow_shows_level_settings_when_level_enabled(
     result2 = await hass.config_entries.options.async_init(entry_no_level.entry_id)
     keys_no_level = {marker.schema for marker in result2["data_schema"].schema}
     assert "enable_level_automation" not in keys_no_level
+    assert "enable_orp_automation" not in keys_no_level
     assert "max_fill_runtime_minutes" not in keys_no_level

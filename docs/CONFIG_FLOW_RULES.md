@@ -33,7 +33,7 @@ Submitting an empty node name for an enabled role returns the `required_nodes_mi
 The settings form (step 3 and options flow) is filtered by the role flags stored from step 1:
 
 - **Chemistry settings** (dosing parameters, ORP automation, notifications, pool volume, chemical strengths) — always shown; chemistry is always mandatory.
-- **Level automation settings** (`enable_level_automation`, target level, hysteresis, max fill runtime) — shown only when `CONF_LEVEL_ENABLED` is `True`.
+- **Level runtime settings** (target level, hysteresis, max fill runtime) — shown only when `CONF_LEVEL_ENABLED` is `True`.
 - Pump and heat-pump have no additional user-facing settings after applying rules 5 and 6.
 
 ---
